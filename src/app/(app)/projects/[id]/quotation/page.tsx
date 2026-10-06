@@ -1,22 +1,17 @@
 import Link from "next/link";
-import type { QuotationMode } from "@prisma/client";
+import { FileDown } from "lucide-react";
 
 import { Breadcrumb } from "@/components/breadcrumb";
 import { Stepper } from "@/components/stepper";
 import { formatDate } from "@/lib/format";
-import { prisma } from "@/lib/prisma";
+import { getLatestQuotation } from "@/lib/data/quotation";
 import { formatCustomerSummary } from "@/lib/quotation";
 import { requireScope } from "@/lib/workspace";
 import { notFound } from "next/navigation";
 
 import { CreateQuotationButton, CopySummaryButton } from "./quotation-actions";
+import { MODES } from "./modes";
 import { QuotationView } from "./quotation-view";
-
-const MODES: { value: QuotationMode; label: string; param: string }[] = [
-  { value: "DETAILED", label: "Detailed", param: "detailed" },
-  { value: "SUMMARY", label: "Summary", param: "summary" },
-  { value: "CLIENT_FRIENDLY", label: "Client Friendly", param: "client" },
-];
 
 export default async function QuotationPage({
   params,
@@ -30,29 +25,9 @@ export default async function QuotationPage({
   const { mode: modeParam } = await searchParams;
   const mode = MODES.find((m) => m.param === modeParam)?.value ?? "DETAILED";
 
-  const project = await prisma.project.findFirst({
-    where: { id, workspaceId, deletedAt: null },
-    select: {
-      id: true,
-      name: true,
-      clientName: true,
-      estimations: {
-        orderBy: { version: "desc" },
-        take: 1,
-        select: {
-          quotations: {
-            where: { deletedAt: null },
-            orderBy: { version: "desc" },
-            take: 1,
-            include: { items: { orderBy: { order: "asc" } } },
-          },
-        },
-      },
-    },
-  });
-  if (!project) notFound();
-
-  const quotation = project.estimations[0]?.quotations[0];
+  const found = await getLatestQuotation(id, workspaceId);
+  if (!found) notFound();
+  const { project, quotation } = found;
 
   const summaryText = quotation
     ? formatCustomerSummary({
@@ -89,6 +64,15 @@ export default async function QuotationPage({
         </div>
         <div className="flex gap-2">
           {quotation && <CopySummaryButton text={summaryText} />}
+          {quotation && (
+            <a
+              href={`/projects/${project.id}/quotation/pdf?mode=${MODES.find((m) => m.value === mode)!.param}`}
+              className="bg-card hover:bg-muted flex h-7 items-center gap-1 rounded-md border px-2.5 text-[0.8rem] font-medium"
+            >
+              <FileDown className="size-3.5" />
+              Unduh PDF
+            </a>
+          )}
           <CreateQuotationButton projectId={project.id} hasExisting={!!quotation} />
         </div>
       </header>
