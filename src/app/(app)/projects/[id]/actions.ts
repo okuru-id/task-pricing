@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import type { Complexity, TaskFlag, TaskType } from "@prisma/client";
 import { z } from "zod";
 
+import { syncMilestonePrices } from "@/lib/data/milestones";
 import { getPriceRules } from "@/lib/data/pricing";
 import { prisma } from "@/lib/prisma";
 import { PricingError, priceTask } from "@/lib/pricing-engine";
@@ -37,6 +38,9 @@ const updateSchema = z.object({
   type: z.enum(TYPES),
   complexity: z.enum(COMPLEXITIES),
   reason: z.string().trim().max(2000).nullable(),
+  description: z.string().trim().max(2000).nullable(),
+  // 0 = belum diatur, 1 = tinggi, 2 = sedang, 3 = rendah
+  priority: z.number().int().min(0).max(3),
   flags: z.array(z.enum(FLAGS)),
   breakdown: z.array(z.string().trim().min(1)).max(50),
   questions: z.array(z.string().trim().min(1)).max(50),
@@ -65,6 +69,11 @@ export async function updateTask(input: UpdateTaskInput): Promise<ActionResult> 
   const found = await locateTask(data.taskId, workspaceId);
   if (!found) return { ok: false, error: "Tugas tidak ditemukan" };
 
+  // Very Complex wajib punya minimal 1 pertanyaan klarifikasi (§2 US4).
+  if (data.complexity === "VERY_COMPLEX" && data.questions.length === 0) {
+    return { ok: false, error: "Tugas Very Complex wajib punya minimal 1 pertanyaan klarifikasi" };
+  }
+
   // Harga SELALU dihitung ulang di server dari complexity — angka dari client diabaikan (§3).
   const rules = await getPriceRules(workspaceId);
   let price: number;
@@ -90,6 +99,8 @@ export async function updateTask(input: UpdateTaskInput): Promise<ActionResult> 
         type: data.type as TaskType,
         complexity: data.complexity as Complexity,
         reason: data.reason,
+        description: data.description,
+        priority: data.priority,
         price,
         customEstimateMin: data.complexity === "VERY_COMPLEX" ? data.customEstimateMin : null,
         customEstimateMax: data.complexity === "VERY_COMPLEX" ? data.customEstimateMax : null,
@@ -122,6 +133,8 @@ export async function updateTask(input: UpdateTaskInput): Promise<ActionResult> 
         data: data.questions.map((question) => ({ estimationTaskId: data.taskId, question })),
       });
     }
+
+    await syncMilestonePrices(tx, found.estimation.id);
   });
 
   revalidatePath(`/projects/${found.estimation.projectId}`);
@@ -134,12 +147,13 @@ export async function deleteTask(taskId: string): Promise<ActionResult> {
   const found = await locateTask(taskId, workspaceId);
   if (!found) return { ok: false, error: "Tugas tidak ditemukan" };
 
-  await prisma.$transaction([
-    prisma.taskBreakdown.deleteMany({ where: { estimationTaskId: taskId } }),
-    prisma.taskFlagEntry.deleteMany({ where: { estimationTaskId: taskId } }),
-    prisma.clarificationQuestion.deleteMany({ where: { estimationTaskId: taskId } }),
-    prisma.estimationTask.delete({ where: { id: taskId } }),
-  ]);
+  await prisma.$transaction(async (tx) => {
+    await tx.taskBreakdown.deleteMany({ where: { estimationTaskId: taskId } });
+    await tx.taskFlagEntry.deleteMany({ where: { estimationTaskId: taskId } });
+    await tx.clarificationQuestion.deleteMany({ where: { estimationTaskId: taskId } });
+    await tx.estimationTask.delete({ where: { id: taskId } });
+    await syncMilestonePrices(tx, found.estimation.id);
+  });
 
   revalidatePath(`/projects/${found.estimation.projectId}`);
   return { ok: true };
@@ -172,5 +186,34 @@ export async function addTask(projectId: string): Promise<ActionResult> {
   });
 
   revalidatePath(`/projects/${projectId}`);
+  return { ok: true };
+}
+
+/** Geser task satu posisi. Urutan dinormalisasi ulang agar tidak ada nilai ganda setelah hapus/tambah. */
+export async function moveTask(taskId: string, direction: "up" | "down"): Promise<ActionResult> {
+  const { workspaceId } = await requireScope();
+
+  const found = await locateTask(taskId, workspaceId);
+  if (!found) return { ok: false, error: "Tugas tidak ditemukan" };
+
+  const siblings = await prisma.estimationTask.findMany({
+    where: { estimationId: found.estimation.id },
+    orderBy: [{ order: "asc" }, { createdAt: "asc" }],
+    select: { id: true },
+  });
+
+  const from = siblings.findIndex((task) => task.id === taskId);
+  const to = direction === "up" ? from - 1 : from + 1;
+  if (from === -1 || to < 0 || to >= siblings.length) return { ok: true };
+
+  [siblings[from], siblings[to]] = [siblings[to], siblings[from]];
+
+  await prisma.$transaction(
+    siblings.map((task, order) =>
+      prisma.estimationTask.update({ where: { id: task.id }, data: { order } }),
+    ),
+  );
+
+  revalidatePath(`/projects/${found.estimation.projectId}`);
   return { ok: true };
 }

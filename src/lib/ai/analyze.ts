@@ -2,12 +2,14 @@ import { generateText, tool } from "ai";
 import type { Complexity, TaskFlag, TaskType } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
+import { syncMilestonePrices } from "@/lib/data/milestones";
 import { getPriceRules } from "@/lib/data/pricing";
+import { matchSuggestions } from "@/lib/milestones";
 import { priceTask, type PriceRules } from "@/lib/pricing-engine";
 
 import { analysisSchema, flagSchema, type AiTask, type Analysis } from "./schema";
 import { buildUserPrompt, SYSTEM_PROMPT } from "./prompt";
-import { getAiSettings, resolveModel } from "./provider";
+import { getAiSettings, resolveModel, type AiSettings } from "./provider";
 
 const TYPE_MAP: Record<AiTask["type"], TaskType> = {
   bug: "BUG",
@@ -102,11 +104,15 @@ function resolvePrice(task: AiTask, rules: PriceRules): number {
  * Tool calling didukung luas (OpenAI, endpoint OpenAI-compatible, Ollama),
  * sedangkan json_schema banyak diabaikan gateway pihak ketiga (§5 vendor lock-in).
  */
-async function generateAnalysis(
+async function generateAnalysis(requirement: string, workspaceId: string): Promise<Analysis> {
+  return generateAnalysisWith(requirement, await getAiSettings(workspaceId));
+}
+
+/** Dipisah dari akses DB agar script eval offline bisa memanggilnya dengan settings eksplisit. */
+export async function generateAnalysisWith(
   requirement: string,
-  workspaceId: string,
+  settings: AiSettings,
 ): Promise<Analysis> {
-  const settings = await getAiSettings(workspaceId);
   const model = resolveModel(settings);
 
   const run = async (): Promise<Analysis> => {
@@ -182,9 +188,19 @@ export async function runAnalysis(estimationId: string, workspaceId: string) {
       await tx.clarificationQuestion.deleteMany({ where: { estimationTaskId: { in: ids } } });
       await tx.estimationTask.deleteMany({ where: { id: { in: ids } } });
     }
+    await tx.milestone.deleteMany({ where: { estimationId } });
+
+    // Asumsi AI disimpan agar tampil otomatis di quotation (§2) dan mencegah dispute scope.
+    await tx.estimation.update({
+      where: { id: estimationId },
+      data: { assumptions: analysis.assumptions },
+    });
+
+    const created: { id: string; name: string }[] = [];
 
     for (const [index, task] of tasks.entries()) {
-      await tx.estimationTask.create({
+      const row = await tx.estimationTask.create({
+        select: { id: true, name: true },
         data: {
           estimationId,
           name: task.name,
@@ -205,10 +221,25 @@ export async function runAnalysis(estimationId: string, workspaceId: string) {
           },
         },
       });
+      created.push(row);
     }
 
-    await tx.project.update({
-      where: { id: estimation.projectId },
+    // Saran milestone AI disimpan sebagai pengelompokan task; yang tidak dikenali dibuang.
+    const drafts = matchSuggestions(analysis.milestones_suggestion, created);
+    for (const [priority, draft] of drafts.entries()) {
+      const milestone = await tx.milestone.create({
+        data: { estimationId, name: draft.name, priority, price: 0 },
+      });
+      await tx.estimationTask.updateMany({
+        where: { id: { in: draft.taskIds } },
+        data: { milestoneId: milestone.id },
+      });
+    }
+    await syncMilestonePrices(tx, estimationId);
+
+    // Hanya Draft yang naik ke Analyzed; analisis ulang tidak boleh menurunkan Quoted/Accepted.
+    await tx.project.updateMany({
+      where: { id: estimation.projectId, status: "DRAFT" },
       data: { status: "ANALYZED" },
     });
   });

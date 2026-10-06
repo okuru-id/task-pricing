@@ -24,6 +24,7 @@ export async function getLatestEstimation(projectId: string, workspaceId: string
               id: true,
               name: true,
               description: true,
+              priority: true,
               type: true,
               complexity: true,
               reason: true,

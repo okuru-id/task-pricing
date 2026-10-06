@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { AnalysisError, runAnalysis } from "@/lib/ai/analyze";
 import { AiConfigError } from "@/lib/ai/provider";
 import { prisma } from "@/lib/prisma";
+import { ANALYSIS_LIMIT, consumeAnalysisQuota } from "@/lib/rate-limit";
 import { requireScope } from "@/lib/workspace";
 
 export type AnalyzeResult = { ok: true; taskCount: number } | { ok: false; error: string };
@@ -19,6 +20,14 @@ export async function startAnalysis(projectId: string): Promise<AnalyzeResult> {
   });
 
   if (!estimation) return { ok: false, error: "Estimation tidak ditemukan" };
+
+  const quota = await consumeAnalysisQuota(workspaceId);
+  if (!quota.allowed) {
+    return {
+      ok: false,
+      error: `Batas ${ANALYSIS_LIMIT} analisis per jam tercapai. Coba lagi sekitar ${quota.retryAfterMinutes} menit lagi.`,
+    };
+  }
 
   try {
     const result = await runAnalysis(estimation.id, workspaceId);

@@ -138,6 +138,7 @@ model Workspace {
   pricingProfiles PricingProfile[]
   projects        Project[]
   aiConfigs       AiConfig[]
+  analysisRuns    AnalysisRun[]
 
   @@map("workspaces")
 }
@@ -204,6 +205,7 @@ model Estimation {
   id          String   @id @default(cuid())
   projectId   String
   requirement String
+  assumptions String[]
   version     Int      @default(1)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -232,9 +234,11 @@ model EstimationTask {
   customEstimateMax Int?
   edited            Boolean    @default(false)
   order             Int        @default(0)
+  milestoneId       String?
   createdAt         DateTime   @default(now())
 
   estimation            Estimation               @relation(fields: [estimationId], references: [id])
+  milestone             Milestone?               @relation(fields: [milestoneId], references: [id], onDelete: SetNull)
   breakdowns            TaskBreakdown[]
   flags                 TaskFlagEntry[]
   clarificationQuestions ClarificationQuestion[]
@@ -280,7 +284,8 @@ model Milestone {
   price        Int
   priority     Int      @default(0)
 
-  estimation Estimation @relation(fields: [estimationId], references: [id])
+  estimation Estimation     @relation(fields: [estimationId], references: [id])
+  tasks      EstimationTask[]
 
   @@map("milestones")
 }
@@ -291,6 +296,7 @@ model Quotation {
   mode         QuotationMode @default(DETAILED)
   version      Int           @default(1)
   total        Int
+  totalMax     Int?
   assumptions  String[]
   exclusions   String[]
   generatedAt  DateTime      @default(now())
@@ -307,9 +313,14 @@ model QuotationItem {
   quotationId      String
   pricingProfileId String?
   name             String
+  type             TaskType?
+  complexity       Complexity?
+  breakdown        String[]
   price            Int
+  priceMax         Int?
   currency         String @default("IDR")
   profileVersion   Int?
+  order            Int    @default(0)
 
   quotation Quotation       @relation(fields: [quotationId], references: [id])
   profile   PricingProfile? @relation(fields: [pricingProfileId], references: [id])
@@ -351,4 +362,16 @@ model AiEvalRun {
   estimation Estimation @relation(fields: [estimationId], references: [id])
 
   @@map("ai_eval_runs")
+}
+
+/// Catatan tiap panggilan analisis AI per workspace — dasar rate limit (§4 Security).
+model AnalysisRun {
+  id          String   @id @default(cuid())
+  workspaceId String
+  createdAt   DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id])
+
+  @@index([workspaceId, createdAt])
+  @@map("analysis_runs")
 }

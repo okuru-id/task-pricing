@@ -55,7 +55,12 @@ function addValue(acc: ProjectValue, value: ProjectValue): ProjectValue {
 
 export async function listProjects(workspaceId: string, status?: ProjectStatus) {
   const projects = await prisma.project.findMany({
-    where: { workspaceId, deletedAt: null, ...(status ? { status } : {}) },
+    // Tanpa filter, project Archived disembunyikan dari dashboard (tetap ada di History).
+    where: {
+      workspaceId,
+      deletedAt: null,
+      ...(status ? { status } : { status: { not: "ARCHIVED" as const } }),
+    },
     orderBy: { updatedAt: "desc" },
     select: {
       id: true,
