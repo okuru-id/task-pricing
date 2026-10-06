@@ -42,7 +42,8 @@ Setup lokal: Postgres jalan di Docker (`taskpricer-db`, port 5433). Jalankan `np
 - [x] UI progress 5 tahap
 - [x] UI Settings (`/settings`): provider/model/temperature/instruksi global + identitas perusahaan untuk PDF. API key tetap di `.env`
 - [x] Halaman Pricing (`/pricing`): ubah harga per kompleksitas sebagai versi rule baru
-- [ ] Progress per tahap yang benar-benar granular (saat ini satu panggilan AI, tahap ditampilkan maju otomatis)
+- [x] Progress per tahap yang nyata (`src/lib/ai/stages.ts`, `job.ts`): extract → breakdown → kompleksitas → dependensi (4 panggilan AI, masing-masing satu tool call terstruktur) → estimasi (mesin harga + guardrail, tanpa AI). Keluaran tiap tahap disimpan di `analysis_jobs`; tahap yang gagal diulang sendirian ("Ulangi tahap ini"), analisis yang terhenti bisa dilanjutkan setelah reload. Tiap tahap wajib menjawab SEMUA task (jawaban parsial = tahap gagal). Kuota 20/jam dihitung per analisis, bukan per tahap
+- [ ] Belum diukur terhadap model sungguhan: biaya/latensi ~4× panggilan dibanding satu panggilan, dan kualitas hasil bertahap vs satu panggilan — jalankan `npm run eval` sebelum rilis (script eval kini memakai pipeline bertahap yang sama)
 
 > **Catatan provider (penting):** `@ai-sdk/openai` default memakai Responses API. Kode memakai
 > `.chat()` agar lewat `/v1/chat/completions`. Ada pula `sanitizingFetch` di `src/lib/ai/provider.ts`

@@ -1,108 +1,148 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Circle, CircleCheck, Info, Loader, TriangleAlert } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { STAGES, STAGE_COUNT } from "@/lib/ai/stages";
 import { cn } from "@/lib/utils";
 
-import { startAnalysis } from "./actions";
+import { advanceAnalysis, beginAnalysis } from "./actions";
 
-const STAGES = [
-  {
-    title: "Mengekstrak kebutuhan",
-    detail: "Membaca percakapan dan mengenali fitur yang diminta",
-  },
-  {
-    title: "Memecah menjadi tugas",
-    detail: "Memisahkan pekerjaan independen menjadi task tersendiri",
-  },
-  {
-    title: "Menilai kompleksitas",
-    detail: "Menilai tingkat kesulitan tiap tugas",
-  },
-  {
-    title: "Memetakan dependensi",
-    detail: "Menandai risiko, pihak ketiga, dan kebutuhan klarifikasi",
-  },
-  {
-    title: "Menyusun estimasi",
-    detail: "Menghitung harga lewat mesin harga aplikasi",
-  },
-];
+export interface ResumeInfo {
+  jobId: string;
+  /** Jumlah tahap yang sudah selesai pada job tersebut. */
+  stage: number;
+  error: string | null;
+}
+
+type Phase = "ready" | "running" | "failed" | "done";
+
+const BUSY_POLL_MS = 2000;
+const BUSY_MAX_POLLS = 75; // ≈ 2,5 menit — sebanding dengan lease server
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
- * Analisis berjalan dalam satu panggilan AI. Tahap ditampilkan berjalan maju
- * sampai hasil tiba, lalu semuanya ditandai selesai (§2 Main Screens).
+ * Progress analisis per tahap yang NYATA: tiap tahap adalah satu panggilan server dan hasilnya disimpan.
+ * Tahap yang gagal diulang sendirian (mulai dari tahap itu), bukan dari awal (§2 AI Analysis).
  */
-export function AnalysisProgress({ projectId }: { projectId: string }) {
+export function AnalysisProgress({ projectId, resume }: { projectId: string; resume: ResumeInfo | null }) {
   const router = useRouter();
-  const [stage, setStage] = useState(0);
-  const [done, setDone] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [completed, setCompleted] = useState(resume?.stage ?? 0);
+  const [phase, setPhase] = useState<Phase>(resume ? "ready" : "running");
+  const [error, setError] = useState<string | null>(resume?.error ?? null);
+  const [jobId, setJobId] = useState<string | null>(resume?.jobId ?? null);
   const started = useRef(false);
-
-  // Ticker dipisah dari pemicu analisis: di StrictMode effect dijalankan dua kali,
-  // dan guard `started` tidak boleh ikut mematikan ticker.
-  useEffect(() => {
-    if (done || error) return;
-
-    const ticker = setInterval(() => {
-      setStage((current) => Math.min(current + 1, STAGES.length - 1));
-    }, 2500);
-
-    return () => clearInterval(ticker);
-  }, [done, error]);
+  const cancelled = useRef(false);
 
   useEffect(() => {
-    if (started.current) return; // mount ganda tidak boleh memicu 2 analisis
-    started.current = true;
+    cancelled.current = false;
+    return () => {
+      cancelled.current = true; // job tetap tersimpan di server dan bisa dilanjutkan
+    };
+  }, []);
 
-    startAnalysis(projectId)
-      .then((result) => {
-        if (result.ok) {
-          setDone(true);
-          setStage(STAGES.length);
-          router.push(`/projects/${projectId}`);
-        } else {
-          setError(result.error);
+  const drive = useCallback(
+    async (id: string) => {
+      setPhase("running");
+      setError(null);
+
+      let polls = 0;
+      while (!cancelled.current) {
+        let result;
+        try {
+          result = await advanceAnalysis(id, projectId);
+        } catch (cause) {
+          setError(cause instanceof Error ? cause.message : "Analisis gagal");
+          setPhase("failed");
+          return;
         }
-      })
-      .catch((cause: unknown) => {
-        setError(cause instanceof Error ? cause.message : "Analisis gagal");
-      });
-  }, [projectId, router]);
 
-  const completed = done ? STAGES.length : stage;
-  const percent = Math.round((completed / STAGES.length) * 100);
+        if (result.state === "busy") {
+          if (++polls > BUSY_MAX_POLLS) {
+            setError("Analisis ini sedang diproses di tab lain. Muat ulang halaman untuk melihat statusnya.");
+            setPhase("failed");
+            return;
+          }
+          await sleep(BUSY_POLL_MS);
+          continue;
+        }
+        polls = 0;
+
+        if (result.state === "progress") {
+          setCompleted(result.completed);
+        } else if (result.state === "done") {
+          setCompleted(STAGE_COUNT);
+          setPhase("done");
+          router.push(`/projects/${projectId}`);
+          return;
+        } else {
+          setCompleted(result.stage);
+          setError(result.error);
+          setPhase("failed");
+          return;
+        }
+      }
+    },
+    [projectId, router],
+  );
+
+  const begin = useCallback(async () => {
+    setPhase("running");
+    setError(null);
+    setCompleted(0);
+
+    const result = await beginAnalysis(projectId).catch((cause: unknown) => ({
+      ok: false as const,
+      error: cause instanceof Error ? cause.message : "Analisis gagal",
+    }));
+
+    if (!result.ok) {
+      setError(result.error);
+      setPhase("failed");
+      return;
+    }
+    setJobId(result.jobId);
+    await drive(result.jobId);
+  }, [projectId, drive]);
+
+  useEffect(() => {
+    if (resume || started.current) return; // mount ganda (StrictMode) tidak boleh memicu 2 analisis
+    started.current = true;
+    void begin();
+  }, [resume, begin]);
+
+  const percent = Math.round((completed / STAGE_COUNT) * 100);
+  const running = phase === "running";
+  const currentTitle = STAGES[Math.min(completed, STAGE_COUNT - 1)].title;
 
   return (
     <>
       <div className="space-y-2">
         <div className="flex items-center justify-between text-xs">
           <span className="font-medium">
-            Tahap {Math.min(stage + 1, STAGES.length)} dari {STAGES.length}
+            {phase === "done"
+              ? "Selesai"
+              : `Tahap ${Math.min(completed + 1, STAGE_COUNT)} dari ${STAGE_COUNT}`}
           </span>
           <span className="text-primary font-semibold">{percent}%</span>
         </div>
         <div className="bg-border h-2 overflow-hidden rounded-full">
-          <div
-            className="bg-primary h-full rounded-full transition-all duration-500"
-            style={{ width: `${percent}%` }}
-          />
+          <div className="bg-primary h-full rounded-full transition-all duration-500" style={{ width: `${percent}%` }} />
         </div>
       </div>
 
       <div className="bg-card divide-y overflow-hidden rounded-[10px] border">
         {STAGES.map((item, index) => {
           const isDone = index < completed;
-          const isCurrent = !error && !isDone && index === stage;
-          const isFailed = Boolean(error) && index === stage;
+          const isCurrent = running && index === completed;
+          const isFailed = phase === "failed" && index === completed;
 
           return (
             <div
-              key={item.title}
+              key={item.key}
               className={cn(
                 "flex items-center gap-3.5 px-4.5 py-4",
                 isCurrent && "bg-primary-soft",
@@ -120,12 +160,7 @@ export function AnalysisProgress({ projectId }: { projectId: string }) {
               )}
 
               <div className="min-w-0 flex-1 space-y-0.5">
-                <p
-                  className={cn(
-                    "text-sm font-semibold",
-                    !isDone && !isCurrent && !isFailed && "text-muted-foreground",
-                  )}
-                >
+                <p className={cn("text-sm font-semibold", !isDone && !isCurrent && !isFailed && "text-muted-foreground")}>
                   {item.title}
                 </p>
                 <p className="text-muted-foreground text-xs">{item.detail}</p>
@@ -147,33 +182,59 @@ export function AnalysisProgress({ projectId }: { projectId: string }) {
         })}
       </div>
 
-      {error ? (
+      {phase === "ready" && (
+        <div className="bg-warning-soft space-y-3 rounded-lg p-4">
+          <p className="text-warning-strong text-[13px] font-semibold">
+            Analisis sebelumnya berhenti di tahap “{currentTitle}”
+          </p>
+          <p className="text-warning-strong text-xs">
+            {error ? `${error} ` : ""}Hasil {completed} tahap pertama masih tersimpan — Anda bisa melanjutkan dari
+            tahap yang tertunda tanpa mengulang dari awal.
+          </p>
+          <div className="flex gap-2">
+            <Button size="sm" onClick={() => jobId && void drive(jobId)}>
+              Lanjutkan dari tahap {completed + 1}
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => void begin()}>
+              Mulai ulang
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {phase === "failed" && (
         <div className="bg-danger-subtle border-danger-border space-y-3 rounded-lg border p-4">
           <div className="flex items-start gap-2.5">
             <TriangleAlert className="text-danger mt-0.5 size-4 shrink-0" />
             <div className="space-y-1">
-              <p className="text-danger text-[13px] font-semibold">Analisis gagal</p>
+              <p className="text-danger text-[13px] font-semibold">
+                Tahap “{currentTitle}” gagal
+              </p>
               <p className="text-danger text-xs">{error}</p>
               <p className="text-muted-foreground text-xs">
-                Tidak ada harga yang dibuat. Perbaiki konfigurasi AI di Settings lalu coba lagi.
+                Tidak ada harga yang dibuat.{" "}
+                {completed > 0 && `Hasil ${completed} tahap sebelumnya tersimpan; mengulang hanya menjalankan tahap ini. `}
+                Jika penyebabnya konfigurasi AI, perbaiki di Settings dulu.
               </p>
             </div>
           </div>
           <div className="flex gap-2">
-            <Button size="sm" onClick={() => window.location.reload()}>
-              Coba lagi
+            <Button size="sm" onClick={() => (jobId ? void drive(jobId) : void begin())}>
+              {jobId ? "Ulangi tahap ini" : "Coba lagi"}
             </Button>
             <Button size="sm" variant="outline" onClick={() => router.push("/settings")}>
               Buka Settings
             </Button>
           </div>
         </div>
-      ) : (
+      )}
+
+      {(phase === "running" || phase === "done") && (
         <div className="bg-info-soft flex items-start gap-2.5 rounded-lg p-3.5">
           <Info className="text-info mt-px size-4 shrink-0" />
           <p className="text-info text-xs">
-            AI hanya memecah dan menilai tugas. Harga akhir selalu ditetapkan oleh mesin
-            harga aplikasi berdasarkan pricing profile Anda.
+            AI hanya memecah dan menilai tugas. Harga akhir selalu ditetapkan oleh mesin harga aplikasi
+            berdasarkan pricing profile Anda.
           </p>
         </div>
       )}

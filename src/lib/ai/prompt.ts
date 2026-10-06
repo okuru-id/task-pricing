@@ -1,16 +1,17 @@
-/** System prompt pipeline analisis. Guardrails §3 PRD dikodekan di sini. */
-export const SYSTEM_PROMPT = `Anda adalah asisten analisis requirement untuk freelancer software developer Indonesia.
+/**
+ * Prompt pipeline analisis, dipecah per tahap (§2 AI Analysis, §3 PRD).
+ * Aturan guardrail yang sama dipakai ulang di tahap yang relevan, bukan diduplikasi.
+ */
 
-TUGAS ANDA
-Ubah percakapan/requirement mentah dari customer menjadi daftar task terstruktur:
-ekstraksi task -> breakdown teknis -> klasifikasi complexity -> deteksi risiko/dependency -> pertanyaan klarifikasi.
+const PREAMBLE = `Anda adalah asisten analisis requirement untuk freelancer software developer Indonesia.
+Anda bekerja dalam beberapa tahap berurutan; saat ini Anda mengerjakan SATU tahap saja dan hasilnya
+dikirim lewat tool yang disediakan. Gunakan bahasa Indonesia untuk semua teks.`;
 
-ATURAN EKSTRAKSI
+const EXTRACTION_RULES = `ATURAN EKSTRAKSI
 - Satu kalimat customer BUKAN berarti satu task. Pisahkan pekerjaan yang independen menjadi task terpisah.
-- Setiap task WAJIB dapat ditelusuri ke kalimat/bagian spesifik dari input. DILARANG mengarang task yang tidak disebut customer.
-- Gunakan bahasa Indonesia untuk semua teks.
+- Setiap task WAJIB dapat ditelusuri ke kalimat/bagian spesifik dari input. DILARANG mengarang task yang tidak disebut customer.`;
 
-ATURAN COMPLEXITY
+const COMPLEXITY_RULES = `ATURAN COMPLEXITY
 - simple: scope jelas, perubahan kecil, dependency rendah. Contoh: tambah menu, ubah label, tambah field, validasi sederhana.
 - medium: frontend + backend, query DB, business logic sederhana. Contoh: CRUD relasi, filter tanggal, search/pagination, export data.
 - complex: beberapa module, business logic penting, perubahan DB, workflow existing berubah. Contoh: approval workflow, multi-step transaction, reporting kompleks.
@@ -19,38 +20,93 @@ ATURAN COMPLEXITY
 
 ATURAN VERY COMPLEX
 - Jika complexity = very_complex, Anda WAJIB mengisi custom_estimate_min dan custom_estimate_max dalam rupiah (angka, bukan teks).
-- Task very_complex WAJIB punya minimal 1 pertanyaan klarifikasi.
 - Untuk complexity selain very_complex, isi custom_estimate_min dan custom_estimate_max dengan null.
 
-ATURAN FLAG
+CONFIDENCE
+- high: requirement jelas dan lengkap.
+- medium: sebagian jelas, ada asumsi kecil.
+- low: requirement ambigu.`;
+
+const FLAG_RULES = `ATURAN FLAG
 - Task yang menyangkut payment gateway, API pihak ketiga, atau integrasi eksternal: beri THIRD_PARTY_DEPENDENCY.
 - Task migrasi data: beri DATA_MIGRATION.
 - Task yang mengubah skema/struktur database: beri DATABASE_REVIEW.
 - Task yang mengubah arsitektur: beri ARCHITECTURE_REVIEW.
 - Requirement ambigu: beri CLARIFICATION_REQUIRED.
 - Task very_complex: beri COMPLEX_REVIEW.
-- Gunakan NO_FLAG hanya jika benar-benar tidak ada flag lain.
+- Gunakan NO_FLAG hanya jika benar-benar tidak ada flag lain.`;
 
-LARANGAN KERAS
+const PROHIBITIONS = `LARANGAN KERAS
 - DILARANG menentukan harga akhir. Harga dihitung oleh mesin harga aplikasi, bukan Anda.
   custom_estimate_min/max hanya untuk very_complex sebagai RANGE indikatif, bukan harga final.
 - DILARANG mengarang requirement atau mengasumsikan provider/teknologi yang tidak disebut customer.
   Jika provider tidak disebut, jangan tebak: buat pertanyaan klarifikasi.
 - DILARANG memasukkan biaya provider/hosting/domain ke dalam task development.
-- Jika informasi tidak tersedia, tulis "Tidak disebutkan" atau buat pertanyaan klarifikasi.
+- Jika informasi tidak tersedia, tulis "Tidak disebutkan" atau buat pertanyaan klarifikasi.`;
 
-CONFIDENCE
-- high: requirement jelas dan lengkap.
-- medium: sebagian jelas, ada asumsi kecil.
-- low: requirement ambigu. Wajib disertai pertanyaan klarifikasi.
+const INDEX_RULE = `Setiap task punya nomor "index". Gunakan index PERSIS seperti pada daftar, dan berikan satu entri untuk SETIAP task.`;
 
-ASSUMPTIONS
-Catat asumsi yang Anda pakai (mis. "Sistem autentikasi existing sudah tersedia") agar tidak terjadi dispute scope.`;
+export const STAGE_SYSTEM = {
+  extract: [
+    PREAMBLE,
+    "TAHAP: EKSTRAKSI. Ubah requirement mentah menjadi daftar task (nama + tipe) dan catat asumsi.",
+    EXTRACTION_RULES,
+    `ASUMSI\nCatat asumsi yang Anda pakai (mis. "Sistem autentikasi existing sudah tersedia") agar tidak terjadi dispute scope.`,
+    PROHIBITIONS,
+  ],
+  breakdown: [
+    PREAMBLE,
+    "TAHAP: BREAKDOWN. Untuk setiap task, tulis langkah pekerjaan teknis yang konkret dan pertanyaan klarifikasi jika requirement ambigu.",
+    INDEX_RULE,
+    "- Pertanyaan klarifikasi hanya untuk hal yang benar-benar tidak jelas; kosongkan jika tidak ada.",
+    PROHIBITIONS,
+  ],
+  complexity: [
+    PREAMBLE,
+    "TAHAP: KOMPLEKSITAS. Nilai complexity, alasan singkat, dan confidence tiap task.",
+    INDEX_RULE,
+    COMPLEXITY_RULES,
+    PROHIBITIONS,
+  ],
+  dependencies: [
+    PREAMBLE,
+    "TAHAP: DEPENDENSI. Tentukan flag risiko tiap task, lalu usulkan pengelompokan task menjadi milestone (tahap pengerjaan).",
+    INDEX_RULE,
+    FLAG_RULES,
+    "ATURAN MILESTONE\n- Sebut task di milestone dengan NAMA persis seperti pada daftar. Satu task hanya boleh masuk satu milestone.",
+    PROHIBITIONS,
+  ],
+} as const;
 
-export function buildUserPrompt(requirement: string, customInstruction?: string | null) {
-  const extra = customInstruction?.trim()
-    ? `\n\nINSTRUKSI TAMBAHAN DARI USER (prioritaskan):\n${customInstruction.trim()}`
-    : "";
+export type AiStageKey = keyof typeof STAGE_SYSTEM;
 
-  return `Analisis requirement customer berikut:\n\n"""\n${requirement}\n"""${extra}`;
+export function buildStageSystem(stage: AiStageKey, customInstruction?: string | null): string {
+  const base = STAGE_SYSTEM[stage].join("\n\n");
+  const extra = customInstruction?.trim() ? `\n\nINSTRUKSI GLOBAL USER:\n${customInstruction.trim()}` : "";
+  return base + extra;
+}
+
+const requirementBlock = (requirement: string) => `REQUIREMENT CUSTOMER:\n\"\"\"\n${requirement}\n\"\"\"`;
+
+export interface TaskLine {
+  index: number;
+  name: string;
+  type?: string;
+  complexity?: string;
+  breakdown?: string[];
+}
+
+const taskList = (tasks: TaskLine[]) =>
+  tasks
+    .map((task) => {
+      const meta = [task.type, task.complexity].filter(Boolean).join(", ");
+      const steps = task.breakdown?.length ? `\n   Langkah: ${task.breakdown.join("; ")}` : "";
+      return `${task.index}. ${task.name}${meta ? ` (${meta})` : ""}${steps}`;
+    })
+    .join("\n");
+
+export function buildStagePrompt(stage: AiStageKey, requirement: string, tasks: TaskLine[] = []): string {
+  if (stage === "extract") return `Ekstrak task dari requirement berikut.\n\n${requirementBlock(requirement)}`;
+
+  return `${requirementBlock(requirement)}\n\nDAFTAR TASK:\n${taskList(tasks)}`;
 }

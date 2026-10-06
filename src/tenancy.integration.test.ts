@@ -21,22 +21,43 @@ vi.mock("next/navigation", () => ({
   },
 }));
 
-const aiOutput = {
-  tasks: [
-    { name: "Login Google", type: "new_feature", complexity: "medium", reason: "r", flags: [], breakdown: ["a"], questions: [], confidence: "high", custom_estimate_min: null, custom_estimate_max: null },
-    { name: "Perbaiki total keranjang", type: "bug", complexity: "simple", reason: "r", flags: [], breakdown: ["b"], questions: [], confidence: "high", custom_estimate_min: null, custom_estimate_max: null },
-    { name: "Laporan penjualan", type: "new_feature", complexity: "medium", reason: "r", flags: [], breakdown: ["c"], questions: [], confidence: "high", custom_estimate_min: null, custom_estimate_max: null },
-  ],
-  assumptions: ["Desain disediakan klien"],
-  milestones_suggestion: [
-    { name: "Fondasi", tasks: ["login google", "Fitur karangan"] },
-    { name: "Perbaikan", tasks: ["Perbaiki total keranjang"] },
-  ],
+const T = (name: string, type: string) => ({ name, type });
+const stageOutputs: Record<string, unknown> = {
+  submit_extract: {
+    tasks: [T("Login Google", "new_feature"), T("Perbaiki total keranjang", "bug"), T("Laporan penjualan", "new_feature")],
+    assumptions: ["Desain disediakan klien"],
+  },
+  submit_breakdown: {
+    items: [0, 1, 2].map((index) => ({ index, breakdown: [`langkah ${index}`], questions: [] })),
+  },
+  submit_complexity: {
+    items: [
+      { index: 0, complexity: "medium", reason: "r", confidence: "high", custom_estimate_min: null, custom_estimate_max: null },
+      { index: 1, complexity: "simple", reason: "r", confidence: "high", custom_estimate_min: null, custom_estimate_max: null },
+      { index: 2, complexity: "medium", reason: "r", confidence: "high", custom_estimate_min: null, custom_estimate_max: null },
+    ],
+  },
+  submit_dependencies: {
+    items: [0, 1, 2].map((index) => ({ index, flags: ["NO_FLAG"] })),
+    milestones_suggestion: [
+      { name: "Fondasi", tasks: ["login google", "Fitur karangan"] },
+      { name: "Perbaikan", tasks: ["Perbaiki total keranjang"] },
+    ],
+  },
 };
+
+/** Catatan panggilan model palsu: tahap mana saja yang benar-benar dipanggil, dan tahap yang dipaksa gagal. */
+const modelCalls: string[] = [];
+const failing = new Set<string>();
 
 vi.mock("ai", async (importOriginal) => ({
   ...(await importOriginal<typeof import("ai")>()),
-  generateText: async () => ({ toolCalls: [{ input: aiOutput }] }),
+  generateText: async (options: { toolChoice: { toolName: string } }) => {
+    const name = options.toolChoice.toolName;
+    modelCalls.push(name);
+    if (failing.has(name)) throw new Error("model error buatan");
+    return { toolCalls: [{ input: stageOutputs[name] }] };
+  },
 }));
 
 describe.skipIf(!DB_URL)("isolasi antar workspace", () => {
@@ -238,13 +259,42 @@ describe.skipIf(!DB_URL)("isolasi antar workspace", () => {
     await prisma.quotation.delete({ where: { id: v2.id } });
   });
 
-  it("analisis menyimpan asumsi dan saran milestone (nama asing dibuang, sisanya belum dikelompokkan)", async () => {
+  it("analisis per tahap: simpan asumsi + milestone, tahap gagal diulang sendirian, analisis ulang mengganti hasil", async () => {
     process.env.OPENAI_API_KEY = "test-key";
-    const { runAnalysis } = await import("@/lib/ai/analyze");
+    const { createAnalysisJob, advanceJob, getResumableJob } = await import("@/lib/ai/job");
     const estimation = await prisma.estimation.findFirstOrThrow({ where: { projectId: a.project } });
 
-    const first = await runAnalysis(estimation.id, a.ws);
-    expect(first.taskCount).toBe(3);
+    // Workspace lain tidak bisa membuat maupun menjalankan job milik A.
+    await expect(createAnalysisJob(estimation.id, b.ws)).rejects.toThrow();
+    const tasksBefore = (await prisma.estimationTask.findMany({ where: { estimationId: estimation.id }, orderBy: { id: "asc" } })).map((t) => t.id);
+    const jobId = await createAnalysisJob(estimation.id, a.ws);
+    expect(await advanceJob(jobId, b.ws)).toMatchObject({ state: "failed" });
+    expect(modelCalls).toEqual([]);
+
+    // Tahap 1 dan 2 berhasil; tahap 3 (kompleksitas) gagal.
+    failing.add("submit_complexity");
+    expect(await advanceJob(jobId, a.ws)).toEqual({ state: "progress", completed: 1 });
+    expect(await advanceJob(jobId, a.ws)).toEqual({ state: "progress", completed: 2 });
+    const failed = await advanceJob(jobId, a.ws);
+    expect(failed).toMatchObject({ state: "failed", stage: 2 });
+    expect((failed as { error: string }).error).toContain("Menilai kompleksitas");
+
+    // Job gagal bisa dilanjutkan dan tidak ada harga/task yang tersimpan.
+    expect(await getResumableJob(estimation.id, a.ws)).toMatchObject({ stage: 2, status: "FAILED" });
+    expect(await getResumableJob(estimation.id, b.ws)).toBeNull();
+    // Tahap yang gagal tidak menyentuh hasil sebelumnya: task lama utuh, belum ada yang diganti.
+    const tasksDuring = (await prisma.estimationTask.findMany({ where: { estimationId: estimation.id }, orderBy: { id: "asc" } })).map((t) => t.id);
+    expect(tasksDuring).toEqual(tasksBefore);
+
+    // Ulang: HANYA tahap kompleksitas yang dipanggil lagi (extract & breakdown tidak).
+    modelCalls.length = 0;
+    failing.clear();
+    expect(await advanceJob(jobId, a.ws)).toEqual({ state: "progress", completed: 3 });
+    expect(modelCalls).toEqual(["submit_complexity"]);
+
+    expect(await advanceJob(jobId, a.ws)).toEqual({ state: "progress", completed: 4 });
+    const done = await advanceJob(jobId, a.ws);
+    expect(done).toEqual({ state: "done", taskCount: 3 });
 
     const saved = await prisma.estimation.findUniqueOrThrow({ where: { id: estimation.id } });
     expect(saved.assumptions).toEqual(["Desain disediakan klien"]);
@@ -260,9 +310,33 @@ describe.skipIf(!DB_URL)("isolasi antar workspace", () => {
     ]);
     expect(await prisma.estimationTask.count({ where: { estimationId: estimation.id, milestoneId: null } })).toBe(1);
 
-    // Analisis ulang mengganti milestone lama, bukan menumpuk.
-    await runAnalysis(estimation.id, a.ws);
+    // Job selesai bersifat idempoten dan tidak lagi ditawarkan untuk dilanjutkan.
+    modelCalls.length = 0;
+    expect(await advanceJob(jobId, a.ws)).toEqual({ state: "done", taskCount: 3 });
+    expect(modelCalls).toEqual([]);
+    expect(await getResumableJob(estimation.id, a.ws)).toBeNull();
+
+    // Analisis ulang (job baru) mengganti milestone lama, bukan menumpuk.
+    const second = await createAnalysisJob(estimation.id, a.ws);
+    for (let i = 0; i < 5; i++) await advanceJob(second, a.ws);
     expect(await prisma.milestone.count({ where: { estimationId: estimation.id } })).toBe(2);
+    expect(await prisma.estimationTask.count({ where: { estimationId: estimation.id } })).toBe(3);
+  });
+
+  it("lease: permintaan kedua pada job yang sedang berjalan mendapat 'busy'", async () => {
+    process.env.OPENAI_API_KEY = "test-key";
+    const { createAnalysisJob, advanceJob } = await import("@/lib/ai/job");
+    const estimation = await prisma.estimation.findFirstOrThrow({ where: { projectId: a.project } });
+    const jobId = await createAnalysisJob(estimation.id, a.ws);
+
+    await prisma.analysisJob.update({ where: { id: jobId }, data: { lockedUntil: new Date(Date.now() + 60_000) } });
+    modelCalls.length = 0;
+    expect(await advanceJob(jobId, a.ws)).toEqual({ state: "busy" });
+    expect(modelCalls).toEqual([]);
+
+    // Lease kedaluwarsa (mis. server mati di tengah tahap) → bisa diambil alih.
+    await prisma.analysisJob.update({ where: { id: jobId }, data: { lockedUntil: new Date(Date.now() - 1000) } });
+    expect(await advanceJob(jobId, a.ws)).toEqual({ state: "progress", completed: 1 });
   });
 
   it("analisis AI memakai kuota per workspace", async () => {

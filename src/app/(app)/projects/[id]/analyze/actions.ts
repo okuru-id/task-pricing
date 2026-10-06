@@ -2,24 +2,27 @@
 
 import { revalidatePath } from "next/cache";
 
-import { AnalysisError, runAnalysis } from "@/lib/ai/analyze";
-import { AiConfigError } from "@/lib/ai/provider";
+import { AnalysisError } from "@/lib/ai/analyze";
+import { advanceJob, createAnalysisJob, type AdvanceResult } from "@/lib/ai/job";
 import { prisma } from "@/lib/prisma";
 import { ANALYSIS_LIMIT, consumeAnalysisQuota } from "@/lib/rate-limit";
 import { requireScope } from "@/lib/workspace";
 
-export type AnalyzeResult = { ok: true; taskCount: number } | { ok: false; error: string };
+export type BeginResult = { ok: true; jobId: string } | { ok: false; error: string };
 
-export async function startAnalysis(projectId: string): Promise<AnalyzeResult> {
+/** Mulai analisis baru: validasi, ambil kuota (sekali per analisis, bukan per tahap), lalu buat job. */
+export async function beginAnalysis(projectId: string): Promise<BeginResult> {
   const { workspaceId } = await requireScope();
 
   const estimation = await prisma.estimation.findFirst({
     where: { project: { id: projectId, workspaceId, deletedAt: null } },
     orderBy: { version: "desc" },
-    select: { id: true },
+    select: { id: true, requirement: true },
   });
-
   if (!estimation) return { ok: false, error: "Estimation tidak ditemukan" };
+  if (estimation.requirement.trim().length < 50) {
+    return { ok: false, error: "Requirement terlalu pendek untuk dianalisis" };
+  }
 
   const quota = await consumeAnalysisQuota(workspaceId);
   if (!quota.allowed) {
@@ -30,17 +33,18 @@ export async function startAnalysis(projectId: string): Promise<AnalyzeResult> {
   }
 
   try {
-    const result = await runAnalysis(estimation.id, workspaceId);
-    revalidatePath(`/projects/${projectId}`);
-    return { ok: true, taskCount: result.taskCount };
+    return { ok: true, jobId: await createAnalysisJob(estimation.id, workspaceId) };
   } catch (error) {
-    // Tampilkan penyebab apa adanya — jangan pernah lanjut dengan harga palsu (§5).
-    if (error instanceof AnalysisError || error instanceof AiConfigError) {
-      return { ok: false, error: error.message };
-    }
-    return {
-      ok: false,
-      error: error instanceof Error ? error.message : "Analisis gagal karena kesalahan tak terduga",
-    };
+    if (error instanceof AnalysisError) return { ok: false, error: error.message };
+    throw error;
   }
+}
+
+/** Jalankan satu tahap. Dipanggil berulang oleh klien; memanggil ulang job yang gagal hanya mengulang tahap itu. */
+export async function advanceAnalysis(jobId: string, projectId: string): Promise<AdvanceResult> {
+  const { workspaceId } = await requireScope();
+
+  const result = await advanceJob(jobId, workspaceId);
+  if (result.state === "done") revalidatePath(`/projects/${projectId}`);
+  return result;
 }

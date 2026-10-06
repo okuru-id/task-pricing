@@ -1,5 +1,7 @@
 # Evaluasi AI & Release Gate
 
+Eval menjalankan pipeline bertahap yang sama dengan aplikasi (4 tahap AI berurutan per kasus, jadi ~4 panggilan model per kasus).
+
 Golden set ada di `evals/golden/*.json` (array `GoldenCase`, lihat `src/lib/eval/metrics.ts`).
 
 - `seed.json` hanya **contoh format** dan belum dilabeli reviewer (`labelledBy: []`).

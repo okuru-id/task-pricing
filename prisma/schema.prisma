@@ -52,6 +52,12 @@ enum ProjectStatus {
   ARCHIVED
 }
 
+enum AnalysisJobStatus {
+  RUNNING
+  FAILED
+  DONE
+}
+
 enum QuotationMode {
   DETAILED
   SUMMARY
@@ -215,6 +221,7 @@ model Estimation {
   milestones  Milestone[]
   quotations  Quotation[]
   aiEvalRuns  AiEvalRun[]
+  analysisJobs AnalysisJob[]
 
   @@map("estimations")
 }
@@ -374,4 +381,25 @@ model AnalysisRun {
 
   @@index([workspaceId, createdAt])
   @@map("analysis_runs")
+}
+
+/// Status analisis AI per tahap. `data` menyimpan keluaran tiap tahap yang sudah selesai sehingga
+/// tahap yang gagal bisa diulang sendirian tanpa memanggil ulang tahap sebelumnya (§2 AI Analysis).
+model AnalysisJob {
+  id           String            @id @default(cuid())
+  estimationId String
+  status       AnalysisJobStatus @default(RUNNING)
+  /// Indeks tahap berikutnya yang akan dijalankan (0..4); 5 = selesai.
+  stage        Int               @default(0)
+  data         Json              @default("{}")
+  error        String?
+  /// Lease singkat agar dua permintaan bersamaan tidak menjalankan tahap yang sama dua kali.
+  lockedUntil  DateTime?
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  estimation Estimation @relation(fields: [estimationId], references: [id])
+
+  @@index([estimationId, createdAt])
+  @@map("analysis_jobs")
 }
