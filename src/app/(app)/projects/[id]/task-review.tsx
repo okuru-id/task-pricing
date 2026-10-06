@@ -4,7 +4,7 @@ import { Fragment, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { Complexity, TaskFlag, TaskType } from "@prisma/client";
-import { ChevronDown, ChevronUp, Lock, Plus, TriangleAlert } from "lucide-react";
+import { ArrowDown, ArrowUp, Lock, Plus, TriangleAlert } from "lucide-react";
 import { toast } from "sonner";
 
 import { ComplexityBadge, ConfidenceLabel, FlagBadge } from "@/components/task-badges";
@@ -35,13 +35,17 @@ import { COMPLEXITY_LABEL, COMPLEXITY_ORDER, FLAGS, FLAG_LABEL, TASK_TYPES, TASK
 import { priceTask, totalPrice, type PriceRules } from "@/lib/pricing-engine";
 import { cn } from "@/lib/utils";
 
-import { addTask, deleteTask, updateTask } from "./actions";
+import { addTask, deleteTask, moveTask, updateTask } from "./actions";
+
+const PRIORITY_LABEL: Record<number, string> = { 0: "Belum diatur", 1: "Tinggi", 2: "Sedang", 3: "Rendah" };
 
 interface Draft {
   name: string;
   type: TaskType;
   complexity: Complexity;
   reason: string;
+  description: string;
+  priority: number;
   flags: TaskFlag[];
   breakdown: string;
   questions: string;
@@ -55,6 +59,8 @@ function toDraft(task: EstimationTaskView): Draft {
     type: task.type,
     complexity: task.complexity,
     reason: task.reason ?? "",
+    description: task.description ?? "",
+    priority: task.priority,
     flags: task.flags.map((f) => f.flag),
     breakdown: task.breakdowns.map((b) => b.description).join("\n"),
     questions: task.clarificationQuestions.map((q) => q.question).join("\n"),
@@ -127,6 +133,8 @@ export function TaskReview({
         type: draft.type,
         complexity: draft.complexity,
         reason: draft.reason || null,
+        description: draft.description || null,
+        priority: draft.priority,
         flags: draft.flags,
         breakdown: lines(draft.breakdown),
         questions: lines(draft.questions),
@@ -156,6 +164,14 @@ export function TaskReview({
       } else {
         toast.error(result.error);
       }
+    });
+  };
+
+  const move = (taskId: string, direction: "up" | "down") => {
+    startTransition(async () => {
+      const result = await moveTask(taskId, direction);
+      if (result.ok) router.refresh();
+      else toast.error(result.error);
     });
   };
 
@@ -192,7 +208,7 @@ export function TaskReview({
               </TableRow>
             )}
 
-            {tasks.map((task) => {
+            {tasks.map((task, index) => {
               const expanded = expandedId === task.id;
               const needsRange =
                 task.complexity === "VERY_COMPLEX" && task.customEstimateMax == null;
@@ -245,11 +261,26 @@ export function TaskReview({
                       )}
                     </TableCell>
                     <TableCell>
-                      {expanded ? (
-                        <ChevronUp className="text-muted-foreground size-4" />
-                      ) : (
-                        <ChevronDown className="text-muted-foreground size-4" />
-                      )}
+                      <span className="flex items-center gap-0.5" onClick={(event) => event.stopPropagation()}>
+                        <button
+                          type="button"
+                          aria-label="Geser ke atas"
+                          disabled={pending || index === 0}
+                          onClick={() => move(task.id, "up")}
+                          className="text-muted-foreground hover:text-foreground disabled:opacity-30"
+                        >
+                          <ArrowUp className="size-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          aria-label="Geser ke bawah"
+                          disabled={pending || index === tasks.length - 1}
+                          onClick={() => move(task.id, "down")}
+                          className="text-muted-foreground hover:text-foreground disabled:opacity-30"
+                        >
+                          <ArrowDown className="size-3.5" />
+                        </button>
+                      </span>
                     </TableCell>
                   </TableRow>
 
@@ -297,6 +328,35 @@ export function TaskReview({
                         onChange={(event) => setDraft({ ...draft, name: event.target.value })}
                         className="h-9 text-[13px]"
                       />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Deskripsi</Label>
+                      <Textarea
+                        value={draft.description}
+                        onChange={(event) => setDraft({ ...draft, description: event.target.value })}
+                        className="bg-card min-h-16 text-[13px]"
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Prioritas</Label>
+                      <Select
+                        items={PRIORITY_LABEL}
+                        value={draft.priority}
+                        onValueChange={(value) => setDraft({ ...draft, priority: Number(value) })}
+                      >
+                        <SelectTrigger className="bg-card h-9 w-full text-[13px]">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {Object.entries(PRIORITY_LABEL).map(([value, label]) => (
+                            <SelectItem key={value} value={Number(value)}>
+                              {label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
 
                     <div className="space-y-1.5">
