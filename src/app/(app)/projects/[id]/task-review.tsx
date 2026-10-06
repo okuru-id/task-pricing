@@ -591,14 +591,14 @@ export function TaskReview({
 
         {tasks.length === 0 || summary.missingRange > 0 ? (
           <Button className="w-full" disabled>
-            Lanjut ke Klarifikasi
+            Lanjut ke Milestone
           </Button>
         ) : (
           <Link
-            href={`/projects/${projectId}/clarification`}
+            href={`/projects/${projectId}/milestone`}
             className={cn(buttonVariants(), "w-full")}
           >
-            Lanjut ke Klarifikasi
+            Lanjut ke Milestone
           </Link>
         )}
         </CardContent>

@@ -21,6 +21,24 @@ vi.mock("next/navigation", () => ({
   },
 }));
 
+const aiOutput = {
+  tasks: [
+    { name: "Login Google", type: "new_feature", complexity: "medium", reason: "r", flags: [], breakdown: ["a"], questions: [], confidence: "high", custom_estimate_min: null, custom_estimate_max: null },
+    { name: "Perbaiki total keranjang", type: "bug", complexity: "simple", reason: "r", flags: [], breakdown: ["b"], questions: [], confidence: "high", custom_estimate_min: null, custom_estimate_max: null },
+    { name: "Laporan penjualan", type: "new_feature", complexity: "medium", reason: "r", flags: [], breakdown: ["c"], questions: [], confidence: "high", custom_estimate_min: null, custom_estimate_max: null },
+  ],
+  assumptions: ["Desain disediakan klien"],
+  milestones_suggestion: [
+    { name: "Fondasi", tasks: ["login google", "Fitur karangan"] },
+    { name: "Perbaikan", tasks: ["Perbaiki total keranjang"] },
+  ],
+};
+
+vi.mock("ai", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("ai")>()),
+  generateText: async () => ({ toolCalls: [{ input: aiOutput }] }),
+}));
+
 describe.skipIf(!DB_URL)("isolasi antar workspace", () => {
   let prisma: typeof import("@/lib/prisma").prisma;
   let a: { ws: string; project: string; task: string; vcTask: string; question: string; vcQuestion: string; quotation: string };
@@ -158,6 +176,65 @@ describe.skipIf(!DB_URL)("isolasi antar workspace", () => {
     const project = await prisma.project.findUniqueOrThrow({ where: { id: a.project } });
     expect(project.deletedAt).toBeNull();
     expect(project.status).toBe("DRAFT");
+  });
+
+  it("milestone: aksi lintas workspace ditolak, pemilik bisa mengelompokkan dan harga ikut tersinkron", async () => {
+    const actions = await import("@/app/(app)/projects/[id]/milestone/actions");
+
+    asB();
+    expect(await actions.createMilestone(a.project, "diretas")).toMatchObject({ ok: false });
+    expect(await actions.autoGroupMilestones(a.project)).toMatchObject({ ok: false });
+    expect(await actions.assignTask(a.vcTask, null)).toMatchObject({ ok: false });
+
+    asA();
+    expect(await actions.createMilestone(a.project, "Tahap 1")).toEqual({ ok: true });
+    const milestone = await prisma.milestone.findFirstOrThrow({ where: { estimation: { projectId: a.project } } });
+
+    // Milestone milik workspace A tidak bisa dipakai/diubah oleh B.
+    asB();
+    expect(await actions.renameMilestone(milestone.id, "diretas")).toMatchObject({ ok: false });
+    expect(await actions.deleteMilestone(milestone.id)).toMatchObject({ ok: false });
+    expect(await actions.moveMilestone(milestone.id, "down")).toMatchObject({ ok: false });
+
+    asA();
+    expect(await actions.assignTask(a.vcTask, milestone.id)).toEqual({ ok: true });
+    const synced = await prisma.milestone.findUniqueOrThrow({ where: { id: milestone.id } });
+    expect(synced.price).toBe(1); // batas bawah Very Complex (customEstimateMin)
+
+    expect(await actions.autoGroupMilestones(a.project)).toEqual({ ok: true });
+    const grouped = await prisma.milestone.findMany({ where: { estimation: { projectId: a.project } }, include: { tasks: true } });
+    expect(grouped.flatMap((m) => m.tasks).length).toBeGreaterThan(0);
+
+    // Hapus milestone melepas task, bukan menghapusnya.
+    expect(await actions.deleteMilestone(grouped[0].id)).toEqual({ ok: true });
+    expect(await prisma.estimationTask.findUnique({ where: { id: a.vcTask } })).not.toBeNull();
+  });
+
+  it("analisis menyimpan asumsi dan saran milestone (nama asing dibuang, sisanya belum dikelompokkan)", async () => {
+    process.env.OPENAI_API_KEY = "test-key";
+    const { runAnalysis } = await import("@/lib/ai/analyze");
+    const estimation = await prisma.estimation.findFirstOrThrow({ where: { projectId: a.project } });
+
+    const first = await runAnalysis(estimation.id, a.ws);
+    expect(first.taskCount).toBe(3);
+
+    const saved = await prisma.estimation.findUniqueOrThrow({ where: { id: estimation.id } });
+    expect(saved.assumptions).toEqual(["Desain disediakan klien"]);
+
+    const milestones = await prisma.milestone.findMany({
+      where: { estimationId: estimation.id },
+      orderBy: { priority: "asc" },
+      include: { tasks: { orderBy: { order: "asc" } } },
+    });
+    expect(milestones.map((m) => [m.name, m.tasks.map((t) => t.name), m.price])).toEqual([
+      ["Fondasi", ["Login Google"], 200_000],
+      ["Perbaikan", ["Perbaiki total keranjang"], 100_000],
+    ]);
+    expect(await prisma.estimationTask.count({ where: { estimationId: estimation.id, milestoneId: null } })).toBe(1);
+
+    // Analisis ulang mengganti milestone lama, bukan menumpuk.
+    await runAnalysis(estimation.id, a.ws);
+    expect(await prisma.milestone.count({ where: { estimationId: estimation.id } })).toBe(2);
   });
 
   it("analisis AI memakai kuota per workspace", async () => {

@@ -234,9 +234,11 @@ model EstimationTask {
   customEstimateMax Int?
   edited            Boolean    @default(false)
   order             Int        @default(0)
+  milestoneId       String?
   createdAt         DateTime   @default(now())
 
   estimation            Estimation               @relation(fields: [estimationId], references: [id])
+  milestone             Milestone?               @relation(fields: [milestoneId], references: [id], onDelete: SetNull)
   breakdowns            TaskBreakdown[]
   flags                 TaskFlagEntry[]
   clarificationQuestions ClarificationQuestion[]
@@ -282,7 +284,8 @@ model Milestone {
   price        Int
   priority     Int      @default(0)
 
-  estimation Estimation @relation(fields: [estimationId], references: [id])
+  estimation Estimation     @relation(fields: [estimationId], references: [id])
+  tasks      EstimationTask[]
 
   @@map("milestones")
 }

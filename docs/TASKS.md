@@ -89,7 +89,7 @@ Setup lokal: Postgres jalan di Docker (`taskpricer-db`, port 5433). Jalankan `np
 
 ## v1.1 — Should Have (backlog setelah MVP, §5)
 - [ ] Multiple pricing profiles penuh (switch per project) + UI assumptions/exclusions
-- [ ] Milestone generator (saran AI berdasarkan module/dependency)
+- [x] Milestone generator (`/projects/[id]/milestone`): saran AI disimpan saat analisis (task dicocokkan lewat nama, nama asing dibuang), tugas bisa dipindah antar milestone, rename/hapus/geser, subtotal per milestone, fallback "Susun otomatis per tipe" tanpa AI. Milestone belum ikut tampil di quotation/PDF
 - [ ] Quotation versioning + diff antar versi
 - [ ] Email quotation (Resend/SMTP), template quotation multiple
 

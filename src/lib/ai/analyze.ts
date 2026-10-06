@@ -2,7 +2,9 @@ import { generateText, tool } from "ai";
 import type { Complexity, TaskFlag, TaskType } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
+import { syncMilestonePrices } from "@/lib/data/milestones";
 import { getPriceRules } from "@/lib/data/pricing";
+import { matchSuggestions } from "@/lib/milestones";
 import { priceTask, type PriceRules } from "@/lib/pricing-engine";
 
 import { analysisSchema, flagSchema, type AiTask, type Analysis } from "./schema";
@@ -186,6 +188,7 @@ export async function runAnalysis(estimationId: string, workspaceId: string) {
       await tx.clarificationQuestion.deleteMany({ where: { estimationTaskId: { in: ids } } });
       await tx.estimationTask.deleteMany({ where: { id: { in: ids } } });
     }
+    await tx.milestone.deleteMany({ where: { estimationId } });
 
     // Asumsi AI disimpan agar tampil otomatis di quotation (§2) dan mencegah dispute scope.
     await tx.estimation.update({
@@ -193,8 +196,11 @@ export async function runAnalysis(estimationId: string, workspaceId: string) {
       data: { assumptions: analysis.assumptions },
     });
 
+    const created: { id: string; name: string }[] = [];
+
     for (const [index, task] of tasks.entries()) {
-      await tx.estimationTask.create({
+      const row = await tx.estimationTask.create({
+        select: { id: true, name: true },
         data: {
           estimationId,
           name: task.name,
@@ -215,7 +221,21 @@ export async function runAnalysis(estimationId: string, workspaceId: string) {
           },
         },
       });
+      created.push(row);
     }
+
+    // Saran milestone AI disimpan sebagai pengelompokan task; yang tidak dikenali dibuang.
+    const drafts = matchSuggestions(analysis.milestones_suggestion, created);
+    for (const [priority, draft] of drafts.entries()) {
+      const milestone = await tx.milestone.create({
+        data: { estimationId, name: draft.name, priority, price: 0 },
+      });
+      await tx.estimationTask.updateMany({
+        where: { id: { in: draft.taskIds } },
+        data: { milestoneId: milestone.id },
+      });
+    }
+    await syncMilestonePrices(tx, estimationId);
 
     // Hanya Draft yang naik ke Analyzed; analisis ulang tidak boleh menurunkan Quoted/Accepted.
     await tx.project.updateMany({

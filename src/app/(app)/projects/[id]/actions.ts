@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import type { Complexity, TaskFlag, TaskType } from "@prisma/client";
 import { z } from "zod";
 
+import { syncMilestonePrices } from "@/lib/data/milestones";
 import { getPriceRules } from "@/lib/data/pricing";
 import { prisma } from "@/lib/prisma";
 import { PricingError, priceTask } from "@/lib/pricing-engine";
@@ -132,6 +133,8 @@ export async function updateTask(input: UpdateTaskInput): Promise<ActionResult> 
         data: data.questions.map((question) => ({ estimationTaskId: data.taskId, question })),
       });
     }
+
+    await syncMilestonePrices(tx, found.estimation.id);
   });
 
   revalidatePath(`/projects/${found.estimation.projectId}`);
@@ -144,12 +147,13 @@ export async function deleteTask(taskId: string): Promise<ActionResult> {
   const found = await locateTask(taskId, workspaceId);
   if (!found) return { ok: false, error: "Tugas tidak ditemukan" };
 
-  await prisma.$transaction([
-    prisma.taskBreakdown.deleteMany({ where: { estimationTaskId: taskId } }),
-    prisma.taskFlagEntry.deleteMany({ where: { estimationTaskId: taskId } }),
-    prisma.clarificationQuestion.deleteMany({ where: { estimationTaskId: taskId } }),
-    prisma.estimationTask.delete({ where: { id: taskId } }),
-  ]);
+  await prisma.$transaction(async (tx) => {
+    await tx.taskBreakdown.deleteMany({ where: { estimationTaskId: taskId } });
+    await tx.taskFlagEntry.deleteMany({ where: { estimationTaskId: taskId } });
+    await tx.clarificationQuestion.deleteMany({ where: { estimationTaskId: taskId } });
+    await tx.estimationTask.delete({ where: { id: taskId } });
+    await syncMilestonePrices(tx, found.estimation.id);
+  });
 
   revalidatePath(`/projects/${found.estimation.projectId}`);
   return { ok: true };
