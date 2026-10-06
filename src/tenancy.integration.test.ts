@@ -210,6 +210,34 @@ describe.skipIf(!DB_URL)("isolasi antar workspace", () => {
     expect(await prisma.estimationTask.findUnique({ where: { id: a.vcTask } })).not.toBeNull();
   });
 
+  it("loader quotation: pilih versi, daftar versi tanpa yang dihapus, workspace lain tidak melihat", async () => {
+    const { getLatestQuotation } = await import("@/lib/data/quotation");
+    const estimation = await prisma.estimation.findFirstOrThrow({ where: { projectId: a.project } });
+
+    const v2 = await prisma.quotation.create({
+      data: { estimationId: estimation.id, version: 2, total: 5, assumptions: [], exclusions: [] },
+    });
+    const v3 = await prisma.quotation.create({
+      data: { estimationId: estimation.id, version: 3, total: 9, assumptions: [], exclusions: [] },
+    });
+
+    const latest = await getLatestQuotation(a.project, a.ws);
+    expect(latest?.quotation?.version).toBe(3);
+    expect(latest?.versions.map((q) => q.version)).toEqual([3, 2, 1]);
+
+    expect((await getLatestQuotation(a.project, a.ws, 2))?.quotation?.total).toBe(5);
+    expect((await getLatestQuotation(a.project, a.ws, 99))?.quotation).toBeNull();
+
+    await prisma.quotation.update({ where: { id: v3.id }, data: { deletedAt: new Date() } });
+    const afterDelete = await getLatestQuotation(a.project, a.ws);
+    expect(afterDelete?.quotation?.version).toBe(2);
+    expect(afterDelete?.versions.map((q) => q.version)).toEqual([2, 1]);
+    expect((await getLatestQuotation(a.project, a.ws, 3))?.quotation).toBeNull();
+
+    expect(await getLatestQuotation(a.project, b.ws, 2)).toBeNull();
+    await prisma.quotation.delete({ where: { id: v2.id } });
+  });
+
   it("analisis menyimpan asumsi dan saran milestone (nama asing dibuang, sisanya belum dikelompokkan)", async () => {
     process.env.OPENAI_API_KEY = "test-key";
     const { runAnalysis } = await import("@/lib/ai/analyze");

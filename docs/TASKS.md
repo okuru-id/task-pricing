@@ -53,7 +53,7 @@ Setup lokal: Postgres jalan di Docker (`taskpricer-db`, port 5433). Jalankan `np
 - [x] Terhubung ke `pricing_profiles`/`pricing_rules` per workspace, fallback ke default
 - [x] `VERY_COMPLEX` wajib `custom_estimate_min/max`, menolak range terbalik
 - [x] Unit test (16 test lulus)
-- [ ] Snapshot harga ke `quotation_items` saat quotation dibuat (menyusul bersama Quotation)
+- [x] Snapshot harga ke `quotation_items` saat quotation dibuat
 
 ### 7. Task Review UI (§2) — SELESAI
 - [x] Tabel task: nama, tipe, kompleksitas, flag, confidence, harga + baris expand
@@ -69,7 +69,7 @@ Setup lokal: Postgres jalan di Docker (`taskpricer-db`, port 5433). Jalankan `np
 - [x] Halaman `/projects/[id]/clarification`: pertanyaan per task; edit/hapus/tambah (server action ter-scope workspace)
 - [x] Tombol "Copy all" (teks siap kirim, dikelompokkan per tugas)
 - [x] `VERY_COMPLEX` wajib minimal 1 pertanyaan: peringatan di UI + pertanyaan terakhir tidak bisa dihapus di server (§2 US4)
-- [ ] Tombol "Lanjut ke Penawaran" masih nonaktif sampai Quotation dibuat
+- [x] Tombol "Lanjut ke Penawaran" aktif (menuju `/projects/[id]/quotation`)
 
 ### 9. Quotation (§2) — SELESAI
 - [x] 3 mode: Detailed / Summary (per tipe + subtotal) / Client Friendly (tanpa istilah teknis) di `/projects/[id]/quotation`
@@ -90,7 +90,7 @@ Setup lokal: Postgres jalan di Docker (`taskpricer-db`, port 5433). Jalankan `np
 ## v1.1 — Should Have (backlog setelah MVP, §5)
 - [ ] Multiple pricing profiles penuh (switch per project) + UI assumptions/exclusions
 - [x] Milestone generator (`/projects/[id]/milestone`): saran AI disimpan saat analisis (task dicocokkan lewat nama, nama asing dibuang), tugas bisa dipindah antar milestone, rename/hapus/geser, subtotal per milestone, fallback "Susun otomatis per tipe" tanpa AI. Milestone belum ikut tampil di quotation/PDF
-- [ ] Quotation versioning + diff antar versi
+- [x] Quotation versioning + diff antar versi: pemilih versi (`?v=`), bandingkan dengan versi lain (`?compare=`) menampilkan item ditambah/dihapus/berubah (harga & kompleksitas), selisih total (termasuk range), perubahan asumsi/pengecualian (`src/lib/quotation-diff.ts`). PDF dan Copy Summary mengikuti versi yang dipilih
 - [ ] Email quotation (Resend/SMTP), template quotation multiple
 
 ## v2.0 — Phase 2–3 (backlog, §5)

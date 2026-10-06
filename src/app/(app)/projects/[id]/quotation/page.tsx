@@ -5,13 +5,14 @@ import { Breadcrumb } from "@/components/breadcrumb";
 import { Stepper } from "@/components/stepper";
 import { formatDate } from "@/lib/format";
 import { getLatestQuotation } from "@/lib/data/quotation";
-import { formatCustomerSummary } from "@/lib/quotation";
+import { formatCustomerSummary, formatTotal } from "@/lib/quotation";
 import { requireScope } from "@/lib/workspace";
 import { notFound } from "next/navigation";
 
 import { ProjectActions } from "../project-actions";
 import { CreateQuotationButton, CopySummaryButton, DeleteQuotationButton } from "./quotation-actions";
 import { MODES } from "./modes";
+import { QuotationDiffPanel } from "./quotation-diff-panel";
 import { QuotationView } from "./quotation-view";
 
 export default async function QuotationPage({
@@ -19,16 +20,43 @@ export default async function QuotationPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ mode?: string }>;
+  searchParams: Promise<{ mode?: string; v?: string; compare?: string }>;
 }) {
   const { workspaceId } = await requireScope();
   const { id } = await params;
-  const { mode: modeParam } = await searchParams;
-  const mode = MODES.find((m) => m.param === modeParam)?.value ?? "DETAILED";
+  const query = await searchParams;
+  const mode = MODES.find((m) => m.param === query.mode)?.value ?? "DETAILED";
 
-  const found = await getLatestQuotation(id, workspaceId);
+  const positive = (value?: string) => {
+    const n = Number(value);
+    return Number.isInteger(n) && n > 0 ? n : undefined;
+  };
+  const requested = positive(query.v);
+
+  const found = await getLatestQuotation(id, workspaceId, requested);
   if (!found) notFound();
-  const { project, quotation } = found;
+  const { project, quotation, versions } = found;
+  // Versi yang diminta tapi tidak ada (mis. sudah dihapus) → 404, bukan diam-diam menampilkan versi lain.
+  if (requested !== undefined && !quotation) notFound();
+
+  const latestVersion = versions[0]?.version;
+  const compareVersion = positive(query.compare);
+  const baseline =
+    quotation && compareVersion !== undefined && compareVersion !== quotation.version
+      ? versions.find((q) => q.version === compareVersion)
+      : undefined;
+
+  /** Pertahankan mode & versi yang sedang dilihat saat berpindah link. */
+  const href = (next: { mode?: string; v?: number; compare?: number | null }) => {
+    const params = new URLSearchParams();
+    const modeValue = next.mode ?? MODES.find((m) => m.value === mode)!.param;
+    if (modeValue !== "detailed") params.set("mode", modeValue);
+    const version = next.v ?? quotation?.version;
+    if (version !== undefined && version !== latestVersion) params.set("v", String(version));
+    if (next.compare) params.set("compare", String(next.compare));
+    const qs = params.toString();
+    return `/projects/${project.id}/quotation${qs ? `?${qs}` : ""}`;
+  };
 
   const summaryText = quotation
     ? formatCustomerSummary({
@@ -67,7 +95,7 @@ export default async function QuotationPage({
           {quotation && <CopySummaryButton text={summaryText} />}
           {quotation && (
             <a
-              href={`/projects/${project.id}/quotation/pdf?mode=${MODES.find((m) => m.value === mode)!.param}`}
+              href={`/projects/${project.id}/quotation/pdf?mode=${MODES.find((m) => m.value === mode)!.param}&v=${quotation.version}`}
               className="bg-card hover:bg-muted flex h-7 items-center gap-1 rounded-md border px-2.5 text-[0.8rem] font-medium"
             >
               <FileDown className="size-3.5" />
@@ -87,11 +115,60 @@ export default async function QuotationPage({
         </div>
       ) : (
         <>
+          {versions.length > 1 && (
+            <section className="bg-card space-y-2.5 rounded-[10px] border p-3.5">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="text-muted-foreground mr-1 text-xs font-semibold">VERSI</span>
+                {versions.map((q) => (
+                  <Link
+                    key={q.id}
+                    href={href({ v: q.version, compare: null })}
+                    className={
+                      q.version === quotation.version
+                        ? "bg-foreground text-background rounded-full px-2.5 py-1 text-xs font-medium"
+                        : "hover:bg-muted rounded-full border px-2.5 py-1 text-xs font-medium"
+                    }
+                    title={`${formatDate(q.generatedAt)} · ${formatTotal(q)}`}
+                  >
+                    v{q.version}
+                    {q.version === latestVersion && " · terbaru"}
+                  </Link>
+                ))}
+              </div>
+
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="text-muted-foreground mr-1 text-xs font-semibold">BANDINGKAN DENGAN</span>
+                {versions
+                  .filter((q) => q.version !== quotation.version)
+                  .map((q) => (
+                    <Link
+                      key={q.id}
+                      href={href({ compare: baseline?.version === q.version ? null : q.version })}
+                      className={
+                        baseline?.version === q.version
+                          ? "bg-primary text-primary-foreground rounded-full px-2.5 py-1 text-xs font-medium"
+                          : "hover:bg-muted rounded-full border px-2.5 py-1 text-xs font-medium"
+                      }
+                    >
+                      v{q.version}
+                    </Link>
+                  ))}
+              </div>
+            </section>
+          )}
+
+          {baseline && (
+            <QuotationDiffPanel
+              before={{ version: baseline.version, data: baseline }}
+              after={{ version: quotation.version, data: quotation }}
+            />
+          )}
+
           <nav className="flex gap-1.5">
             {MODES.map((m) => (
               <Link
                 key={m.value}
-                href={`/projects/${project.id}/quotation?mode=${m.param}`}
+                href={href({ mode: m.param })}
                 className={
                   m.value === mode
                     ? "bg-primary text-primary-foreground rounded-md px-3 py-1.5 text-[13px] font-medium"
