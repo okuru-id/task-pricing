@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { tasksMissingQuestions } from "@/lib/clarification";
 import { getPriceRules, getPricingProfileRef } from "@/lib/data/pricing";
 import { prisma } from "@/lib/prisma";
+import { QUOTABLE_FROM } from "@/lib/project-status";
 import { PricingError } from "@/lib/pricing-engine";
 import { buildSnapshot } from "@/lib/quotation";
 import { requireScope } from "@/lib/workspace";
@@ -99,7 +100,11 @@ export async function createQuotation(projectId: string): Promise<CreateQuotatio
       },
     });
 
-    await tx.project.update({ where: { id: projectId }, data: { status: "QUOTED" } });
+    // Accepted/Completed/Archived tidak diturunkan oleh versi quotation baru.
+    await tx.project.updateMany({
+      where: { id: projectId, status: { in: QUOTABLE_FROM } },
+      data: { status: "QUOTED" },
+    });
   });
 
   revalidatePath(`/projects/${projectId}/quotation`);

@@ -8,6 +8,7 @@ export async function getLatestQuotation(projectId: string, workspaceId: string)
       id: true,
       name: true,
       clientName: true,
+      status: true,
       workspace: {
         select: { name: true, companyName: true, address: true, contact: true, bankInfo: true, terms: true },
       },

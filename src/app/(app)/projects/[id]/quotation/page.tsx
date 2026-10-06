@@ -9,7 +9,8 @@ import { formatCustomerSummary } from "@/lib/quotation";
 import { requireScope } from "@/lib/workspace";
 import { notFound } from "next/navigation";
 
-import { CreateQuotationButton, CopySummaryButton } from "./quotation-actions";
+import { ProjectActions } from "../project-actions";
+import { CreateQuotationButton, CopySummaryButton, DeleteQuotationButton } from "./quotation-actions";
 import { MODES } from "./modes";
 import { QuotationView } from "./quotation-view";
 
@@ -74,8 +75,11 @@ export default async function QuotationPage({
             </a>
           )}
           <CreateQuotationButton projectId={project.id} hasExisting={!!quotation} />
+          {quotation && <DeleteQuotationButton quotationId={quotation.id} />}
         </div>
       </header>
+
+      <ProjectActions projectId={project.id} status={project.status} />
 
       {!quotation ? (
         <div className="bg-card text-muted-foreground rounded-[10px] border p-10 text-center text-[13px]">

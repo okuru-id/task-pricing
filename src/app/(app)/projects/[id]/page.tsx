@@ -6,6 +6,7 @@ import { getLatestEstimation } from "@/lib/data/estimations";
 import { getPriceRules } from "@/lib/data/pricing";
 import { requireScope } from "@/lib/workspace";
 
+import { ProjectActions } from "./project-actions";
 import { TaskReview } from "./task-review";
 
 export default async function ProjectPage({ params }: { params: Promise<{ id: string }> }) {
@@ -35,7 +36,14 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
           </p>
         </div>
 
-        <div className="flex gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <ProjectActions projectId={project.id} status={project.status} />
+          <Link
+            href={`/projects/${project.id}/quotation`}
+            className="bg-card hover:bg-muted flex h-8 items-center rounded-md border px-3 text-[13px] font-medium"
+          >
+            Penawaran
+          </Link>
           <Link
             href={`/projects/${project.id}/requirement`}
             className="bg-card hover:bg-muted flex h-8 items-center rounded-md border px-3 text-[13px] font-medium"

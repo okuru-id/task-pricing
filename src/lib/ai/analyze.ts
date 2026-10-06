@@ -213,8 +213,9 @@ export async function runAnalysis(estimationId: string, workspaceId: string) {
       });
     }
 
-    await tx.project.update({
-      where: { id: estimation.projectId },
+    // Hanya Draft yang naik ke Analyzed; analisis ulang tidak boleh menurunkan Quoted/Accepted.
+    await tx.project.updateMany({
+      where: { id: estimation.projectId, status: "DRAFT" },
       data: { status: "ANALYZED" },
     });
   });
