@@ -7,7 +7,7 @@ import { priceTask, type PriceRules } from "@/lib/pricing-engine";
 
 import { analysisSchema, flagSchema, type AiTask, type Analysis } from "./schema";
 import { buildUserPrompt, SYSTEM_PROMPT } from "./prompt";
-import { getAiSettings, resolveModel } from "./provider";
+import { getAiSettings, resolveModel, type AiSettings } from "./provider";
 
 const TYPE_MAP: Record<AiTask["type"], TaskType> = {
   bug: "BUG",
@@ -102,11 +102,15 @@ function resolvePrice(task: AiTask, rules: PriceRules): number {
  * Tool calling didukung luas (OpenAI, endpoint OpenAI-compatible, Ollama),
  * sedangkan json_schema banyak diabaikan gateway pihak ketiga (§5 vendor lock-in).
  */
-async function generateAnalysis(
+async function generateAnalysis(requirement: string, workspaceId: string): Promise<Analysis> {
+  return generateAnalysisWith(requirement, await getAiSettings(workspaceId));
+}
+
+/** Dipisah dari akses DB agar script eval offline bisa memanggilnya dengan settings eksplisit. */
+export async function generateAnalysisWith(
   requirement: string,
-  workspaceId: string,
+  settings: AiSettings,
 ): Promise<Analysis> {
-  const settings = await getAiSettings(workspaceId);
   const model = resolveModel(settings);
 
   const run = async (): Promise<Analysis> => {
