@@ -1,0 +1,61 @@
+import { z } from "zod";
+
+/** Kontrak output AI persis seperti §3 PRD. Divalidasi ketat — AI tidak boleh mengarang field. */
+
+export const taskTypeSchema = z.enum([
+  "bug",
+  "enhancement",
+  "new_feature",
+  "integration",
+  "infrastructure",
+  "investigation",
+  "maintenance",
+  "change_request",
+]);
+
+export const complexitySchema = z.enum(["simple", "medium", "complex", "very_complex"]);
+
+export const confidenceSchema = z.enum(["low", "medium", "high"]);
+
+export const flagSchema = z.enum([
+  "NO_FLAG",
+  "CLARIFICATION_REQUIRED",
+  "COMPLEX_REVIEW",
+  "THIRD_PARTY_DEPENDENCY",
+  "DATABASE_REVIEW",
+  "ARCHITECTURE_REVIEW",
+  "DATA_MIGRATION",
+  "CHANGE_REQUEST",
+]);
+
+export const aiTaskSchema = z.object({
+  name: z.string().min(1).describe("Nama task singkat, bahasa Indonesia"),
+  type: taskTypeSchema,
+  complexity: complexitySchema,
+  reason: z.string().describe("Alasan singkat kenapa complexity ini dipilih"),
+  // Sengaja longgar: model lemah sering mengisi teks bebas di sini. Nilai di luar
+  // daftar flag dibuang saat normalisasi, dan guardrail menghitung ulang flag wajib.
+  flags: z.array(z.string()),
+  breakdown: z.array(z.string()).describe("Pekerjaan teknis konkret untuk task ini"),
+  questions: z.array(z.string()).describe("Pertanyaan klarifikasi jika requirement ambigu"),
+  confidence: confidenceSchema,
+  custom_estimate_min: z
+    .number()
+    .nullable()
+    .describe("WAJIB diisi (rupiah) jika complexity very_complex, selain itu null"),
+  custom_estimate_max: z
+    .number()
+    .nullable()
+    .describe("WAJIB diisi (rupiah) jika complexity very_complex, selain itu null"),
+});
+
+export const analysisSchema = z.object({
+  tasks: z.array(aiTaskSchema),
+  assumptions: z.array(z.string()),
+  milestones_suggestion: z.array(
+    z.object({ name: z.string(), tasks: z.array(z.string()) }),
+  ),
+});
+
+export type AiTask = z.infer<typeof aiTaskSchema>;
+export type Analysis = z.infer<typeof analysisSchema>;

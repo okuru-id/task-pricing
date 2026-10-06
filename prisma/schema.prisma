@@ -1,0 +1,354 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum TaskType {
+  BUG
+  ENHANCEMENT
+  NEW_FEATURE
+  INTEGRATION
+  INFRASTRUCTURE
+  INVESTIGATION
+  MAINTENANCE
+  CHANGE_REQUEST
+}
+
+enum Complexity {
+  SIMPLE
+  MEDIUM
+  COMPLEX
+  VERY_COMPLEX
+}
+
+enum Confidence {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum TaskFlag {
+  NO_FLAG
+  CLARIFICATION_REQUIRED
+  COMPLEX_REVIEW
+  THIRD_PARTY_DEPENDENCY
+  DATABASE_REVIEW
+  ARCHITECTURE_REVIEW
+  DATA_MIGRATION
+  CHANGE_REQUEST
+}
+
+enum ProjectStatus {
+  DRAFT
+  ANALYZED
+  QUOTED
+  ACCEPTED
+  REJECTED
+  COMPLETED
+  ARCHIVED
+}
+
+enum QuotationMode {
+  DETAILED
+  SUMMARY
+  CLIENT_FRIENDLY
+}
+
+enum WorkspaceRole {
+  OWNER
+  MEMBER
+  VIEWER
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String?
+  image         String?
+  emailVerified DateTime?
+  passwordHash  String?
+  createdAt     DateTime  @default(now())
+
+  memberships WorkspaceMember[]
+  accounts    Account[]
+  sessions    Session[]
+
+  @@map("users")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+model Workspace {
+  id        String   @id @default(cuid())
+  name      String
+  createdAt DateTime @default(now())
+
+  // Branding untuk header quotation / PDF (§2 Quotation)
+  logoUrl      String?
+  companyName  String?
+  address      String?
+  contact      String?
+  bankInfo     String?
+  signatureUrl String?
+  terms        String?
+
+  members         WorkspaceMember[]
+  pricingProfiles PricingProfile[]
+  projects        Project[]
+  aiConfigs       AiConfig[]
+
+  @@map("workspaces")
+}
+
+model WorkspaceMember {
+  id          String        @id @default(cuid())
+  workspaceId String
+  userId      String
+  role        WorkspaceRole @default(OWNER)
+  createdAt   DateTime      @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id])
+  user      User      @relation(fields: [userId], references: [id])
+
+  @@unique([workspaceId, userId])
+  @@map("workspace_members")
+}
+
+model PricingProfile {
+  id          String   @id @default(cuid())
+  workspaceId String
+  name        String
+  isDefault   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  workspace Workspace      @relation(fields: [workspaceId], references: [id])
+  rules     PricingRule[]
+  snapshots QuotationItem[]
+
+  @@map("pricing_profiles")
+}
+
+model PricingRule {
+  id               String     @id @default(cuid())
+  pricingProfileId String
+  complexity       Complexity
+  price            Int
+  version          Int        @default(1)
+  createdAt        DateTime   @default(now())
+
+  profile PricingProfile @relation(fields: [pricingProfileId], references: [id])
+
+  @@map("pricing_rules")
+}
+
+model Project {
+  id          String        @id @default(cuid())
+  workspaceId String
+  name        String
+  clientName  String?
+  status      ProjectStatus @default(DRAFT)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  deletedAt   DateTime?
+
+  workspace      Workspace       @relation(fields: [workspaceId], references: [id])
+  estimations    Estimation[]
+  changeRequests ChangeRequest[]
+
+  @@map("projects")
+}
+
+model Estimation {
+  id          String   @id @default(cuid())
+  projectId   String
+  requirement String
+  version     Int      @default(1)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  project     Project            @relation(fields: [projectId], references: [id])
+  tasks       EstimationTask[]
+  milestones  Milestone[]
+  quotations  Quotation[]
+  aiEvalRuns  AiEvalRun[]
+
+  @@map("estimations")
+}
+
+model EstimationTask {
+  id                String     @id @default(cuid())
+  estimationId      String
+  name              String
+  description       String?
+  type              TaskType
+  complexity        Complexity
+  reason            String?
+  confidence        Confidence @default(MEDIUM)
+  priority          Int        @default(0)
+  price             Int
+  customEstimateMin Int?
+  customEstimateMax Int?
+  edited            Boolean    @default(false)
+  order             Int        @default(0)
+  createdAt         DateTime   @default(now())
+
+  estimation            Estimation               @relation(fields: [estimationId], references: [id])
+  breakdowns            TaskBreakdown[]
+  flags                 TaskFlagEntry[]
+  clarificationQuestions ClarificationQuestion[]
+
+  @@map("estimation_tasks")
+}
+
+model TaskBreakdown {
+  id                String @id @default(cuid())
+  estimationTaskId  String
+  description       String
+  order             Int    @default(0)
+
+  task EstimationTask @relation(fields: [estimationTaskId], references: [id])
+
+  @@map("task_breakdowns")
+}
+
+model TaskFlagEntry {
+  id               String   @id @default(cuid())
+  estimationTaskId String
+  flag             TaskFlag
+
+  task EstimationTask @relation(fields: [estimationTaskId], references: [id])
+
+  @@map("task_flags")
+}
+
+model ClarificationQuestion {
+  id               String  @id @default(cuid())
+  estimationTaskId String
+  question         String
+
+  task EstimationTask @relation(fields: [estimationTaskId], references: [id])
+
+  @@map("clarification_questions")
+}
+
+model Milestone {
+  id           String   @id @default(cuid())
+  estimationId String
+  name         String
+  price        Int
+  priority     Int      @default(0)
+
+  estimation Estimation @relation(fields: [estimationId], references: [id])
+
+  @@map("milestones")
+}
+
+model Quotation {
+  id           String        @id @default(cuid())
+  estimationId String
+  mode         QuotationMode @default(DETAILED)
+  version      Int           @default(1)
+  total        Int
+  assumptions  String[]
+  exclusions   String[]
+  generatedAt  DateTime      @default(now())
+  deletedAt    DateTime?
+
+  estimation Estimation      @relation(fields: [estimationId], references: [id])
+  items      QuotationItem[]
+
+  @@map("quotations")
+}
+
+model QuotationItem {
+  id               String @id @default(cuid())
+  quotationId      String
+  pricingProfileId String?
+  name             String
+  price            Int
+  currency         String @default("IDR")
+  profileVersion   Int?
+
+  quotation Quotation       @relation(fields: [quotationId], references: [id])
+  profile   PricingProfile? @relation(fields: [pricingProfileId], references: [id])
+
+  @@map("quotation_items")
+}
+
+model ChangeRequest {
+  id        String   @id @default(cuid())
+  projectId String
+  name      String
+  createdAt DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id])
+
+  @@map("change_requests")
+}
+
+model AiConfig {
+  id          String   @id @default(cuid())
+  workspaceId String
+  provider    String
+  model       String
+  temperature Float    @default(0.2)
+  systemPrompt String?
+  createdAt   DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id])
+
+  @@map("ai_configs")
+}
+
+model AiEvalRun {
+  id           String   @id @default(cuid())
+  estimationId String
+  score        Float
+  createdAt    DateTime @default(now())
+
+  estimation Estimation @relation(fields: [estimationId], references: [id])
+
+  @@map("ai_eval_runs")
+}
