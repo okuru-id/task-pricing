@@ -8,7 +8,7 @@ import { Check, Copy, Pencil, Plus, Trash2, TriangleAlert, X } from "lucide-reac
 import { toast } from "sonner";
 
 import { ComplexityBadge, ConfidenceLabel } from "@/components/task-badges";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { formatQuestionsForCopy, tasksMissingQuestions } from "@/lib/clarification";
 
@@ -209,8 +209,13 @@ export function ClarificationList({
         >
           Kembali ke Review Task
         </Link>
-        {/* Langkah berikutnya (Quotation) belum dibuat. */}
-        <Button disabled>Lanjut ke Penawaran</Button>
+        {missing.length > 0 ? (
+          <Button disabled>Lanjut ke Penawaran</Button>
+        ) : (
+          <Link href={`/projects/${projectId}/quotation`} className={buttonVariants()}>
+            Lanjut ke Penawaran
+          </Link>
+        )}
       </div>
     </div>
   );

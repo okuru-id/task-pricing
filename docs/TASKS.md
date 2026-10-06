@@ -69,12 +69,13 @@ Setup lokal: Postgres jalan di Docker (`taskpricer-db`, port 5433). Jalankan `np
 - [x] `VERY_COMPLEX` wajib minimal 1 pertanyaan: peringatan di UI + pertanyaan terakhir tidak bisa dihapus di server (§2 US4)
 - [ ] Tombol "Lanjut ke Penawaran" masih nonaktif sampai Quotation dibuat
 
-### 9. Quotation (§2)
-- [ ] 3 mode: Detailed / Summary / Client Friendly (tanpa istilah teknis)
-- [ ] Assumptions + scope exclusions tampil otomatis di quotation
+### 9. Quotation (§2) — tahap 1 selesai, PDF menyusul
+- [x] 3 mode: Detailed / Summary (per tipe + subtotal) / Client Friendly (tanpa istilah teknis) di `/projects/[id]/quotation`
+- [x] Assumptions (kini disimpan di `estimations.assumptions` saat analisis) + scope exclusions (dasar + turunan flag) tampil otomatis
 - [ ] Generate PDF server-side via `@react-pdf/renderer` (< 5 detik)
-- [ ] Tombol "Copy Customer Summary" → teks WhatsApp bahasa Indonesia, tanpa istilah teknis
-- [ ] Simpan snapshot harga (`price`, `currency`, `profile_id`, `profile_version`) per item
+- [x] Tombol "Copy Customer Summary" → teks WhatsApp bahasa Indonesia, tanpa istilah teknis
+- [x] Snapshot harga (`price`/`priceMax`, `currency`, `profile_id`, `profile_version`) per item; versi quotation bertambah tiap "Buat versi baru"; project → QUOTED
+- [ ] Estimation lama (dianalisis sebelum migrasi `quotation_snapshot`) tidak punya asumsi — analisis ulang untuk mengisinya
 
 ### 10. Project Lifecycle & History (§2)
 - [ ] Status flow: Draft → Analyzed → Quoted → Accepted/Rejected → Completed → Archived

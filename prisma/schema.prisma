@@ -204,6 +204,7 @@ model Estimation {
   id          String   @id @default(cuid())
   projectId   String
   requirement String
+  assumptions String[]
   version     Int      @default(1)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -291,6 +292,7 @@ model Quotation {
   mode         QuotationMode @default(DETAILED)
   version      Int           @default(1)
   total        Int
+  totalMax     Int?
   assumptions  String[]
   exclusions   String[]
   generatedAt  DateTime      @default(now())
@@ -307,9 +309,14 @@ model QuotationItem {
   quotationId      String
   pricingProfileId String?
   name             String
+  type             TaskType?
+  complexity       Complexity?
+  breakdown        String[]
   price            Int
+  priceMax         Int?
   currency         String @default("IDR")
   profileVersion   Int?
+  order            Int    @default(0)
 
   quotation Quotation       @relation(fields: [quotationId], references: [id])
   profile   PricingProfile? @relation(fields: [pricingProfileId], references: [id])

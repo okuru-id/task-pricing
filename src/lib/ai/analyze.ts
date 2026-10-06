@@ -183,6 +183,12 @@ export async function runAnalysis(estimationId: string, workspaceId: string) {
       await tx.estimationTask.deleteMany({ where: { id: { in: ids } } });
     }
 
+    // Asumsi AI disimpan agar tampil otomatis di quotation (§2) dan mencegah dispute scope.
+    await tx.estimation.update({
+      where: { id: estimationId },
+      data: { assumptions: analysis.assumptions },
+    });
+
     for (const [index, task] of tasks.entries()) {
       await tx.estimationTask.create({
         data: {

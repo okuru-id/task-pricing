@@ -24,3 +24,14 @@ export async function getPriceRules(workspaceId: string): Promise<PriceRules> {
 
   return { ...DEFAULT_RULES, ...rules };
 }
+
+/** Profile + versi rule terbaru yang dipakai sebagai acuan snapshot quotation (§2). */
+export async function getPricingProfileRef(workspaceId: string) {
+  const profile = await prisma.pricingProfile.findFirst({
+    where: { workspaceId },
+    orderBy: [{ isDefault: "desc" }, { createdAt: "asc" }],
+    select: { id: true, rules: { select: { version: true }, orderBy: { version: "desc" }, take: 1 } },
+  });
+
+  return profile ? { id: profile.id, version: profile.rules[0]?.version ?? 1 } : null;
+}
