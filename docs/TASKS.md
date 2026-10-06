@@ -3,7 +3,7 @@
 > Diturunkan dari [taskpricer-prd-v2.md](taskpricer-prd-v2.md) (sumber utama) dan [taskpricer-prd.md](taskpricer-prd.md). Referensi `§n` = nomor section di PRD v2.
 
 Status: fondasi + alur Input → Analisis AI sudah berjalan end-to-end dan terverifikasi dengan data nyata.
-Berikutnya: Task Review, Klarifikasi, Quotation.
+Berikutnya: Quotation, Project Lifecycle.
 
 Setup lokal: Postgres jalan di Docker (`taskpricer-db`, port 5433). Jalankan `npm run dev`, `npm run test:run`.
 
@@ -63,10 +63,11 @@ Setup lokal: Postgres jalan di Docker (`taskpricer-db`, port 5433). Jalankan `np
 - [x] Auto-flag third-party/migrasi (dikerjakan di guardrail AI, lihat §5)
 - [ ] Reorder task (drag) dan field `description`/`priority` belum diekspos di UI
 
-### 8. Clarification (§2)
-- [ ] List pertanyaan klarifikasi per task; user bisa edit/hapus/tambah
-- [ ] Tombol "Copy all"
-- [ ] `VERY_COMPLEX` wajib minimal 1 pertanyaan klarifikasi (§2 US4)
+### 8. Clarification (§2) — SELESAI
+- [x] Halaman `/projects/[id]/clarification`: pertanyaan per task; edit/hapus/tambah (server action ter-scope workspace)
+- [x] Tombol "Copy all" (teks siap kirim, dikelompokkan per tugas)
+- [x] `VERY_COMPLEX` wajib minimal 1 pertanyaan: peringatan di UI + pertanyaan terakhir tidak bisa dihapus di server (§2 US4)
+- [ ] Tombol "Lanjut ke Penawaran" masih nonaktif sampai Quotation dibuat
 
 ### 9. Quotation (§2)
 - [ ] 3 mode: Detailed / Summary / Client Friendly (tanpa istilah teknis)

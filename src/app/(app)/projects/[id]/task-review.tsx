@@ -1,13 +1,14 @@
 "use client";
 
 import { Fragment, useMemo, useState, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { Complexity, TaskFlag, TaskType } from "@prisma/client";
 import { ChevronDown, ChevronUp, Lock, Plus, TriangleAlert } from "lucide-react";
 import { toast } from "sonner";
 
 import { ComplexityBadge, ConfidenceLabel, FlagBadge } from "@/components/task-badges";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -528,9 +529,18 @@ export function TaskReview({
           </div>
         )}
 
-        <Button className="w-full" disabled={tasks.length === 0 || summary.missingRange > 0}>
-          Lanjut ke Klarifikasi
-        </Button>
+        {tasks.length === 0 || summary.missingRange > 0 ? (
+          <Button className="w-full" disabled>
+            Lanjut ke Klarifikasi
+          </Button>
+        ) : (
+          <Link
+            href={`/projects/${projectId}/clarification`}
+            className={cn(buttonVariants(), "w-full")}
+          >
+            Lanjut ke Klarifikasi
+          </Link>
+        )}
         </CardContent>
       </Card>
     </div>
