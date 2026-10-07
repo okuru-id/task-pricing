@@ -41,40 +41,66 @@ if (!workspaceArg) {
 }
 const settings = await requireAiSettings(workspaceArg);
 
-const scores = [];
-for (const golden of cases) {
-  try {
-    const analysis = await generateAnalysisWith(golden.requirement, settings);
-    const tasks = analysis.tasks.map(applyGuardrails).map((task) => ({
-      name: task.name,
-      reason: task.reason,
-      breakdown: task.breakdown,
-      complexity: task.complexity,
-      flags: task.flags,
-    }));
-    scores.push(scoreCase(golden, tasks));
-    console.log(`✓ ${golden.id}: ${tasks.length} task`);
+/**
+ * Tiap kasus berisi 4 panggilan model BERURUTAN (~100 detik), tapi antar-kasus tidak saling
+ * bergantung — jadi beberapa kasus dijalankan bersamaan. Naikkan bila gateway kuat, turunkan
+ * ke 1 bila kena rate limit.
+ */
+const concurrencyArg = Number(process.argv.find((arg) => arg.startsWith("--concurrency="))?.split("=")[1]);
+const concurrency = Math.max(1, Number.isFinite(concurrencyArg) && concurrencyArg > 0 ? concurrencyArg : 4);
 
-    // --show menampilkan keluaran model mentah: dipakai reviewer saat melabeli
-    // dan saat menelusuri kenapa sebuah metrik jatuh.
-    if (process.argv.includes("--show")) {
-      for (const task of tasks) {
-        console.log(`    ${task.complexity.padEnd(12)} ${task.name}  [${task.flags.join(", ")}]`);
+const scores: ReturnType<typeof scoreCase>[] = new Array(cases.length);
+const show = process.argv.includes("--show");
+let cursor = 0;
+
+async function worker() {
+  while (cursor < cases.length) {
+    const index = cursor++;
+    const golden = cases[index];
+    // Keluaran dikumpulkan dulu supaya baris antar-kasus tidak saling menyisip saat paralel.
+    const lines: string[] = [];
+
+    try {
+      const analysis = await generateAnalysisWith(golden.requirement, settings);
+      const tasks = analysis.tasks.map(applyGuardrails).map((task) => ({
+        name: task.name,
+        reason: task.reason,
+        breakdown: task.breakdown,
+        complexity: task.complexity,
+        flags: task.flags,
+      }));
+      scores[index] = scoreCase(golden, tasks);
+      lines.push(`✓ ${golden.id}: ${tasks.length} task`);
+
+      // --show menampilkan keluaran model mentah: dipakai reviewer saat melabeli
+      // dan saat menelusuri kenapa sebuah metrik jatuh.
+      if (show) {
+        for (const task of tasks) {
+          lines.push(`    ${task.complexity.padEnd(12)} ${task.name}  [${task.flags.join(", ")}]`);
+        }
+        for (const expected of golden.expectedTasks) {
+          lines.push(`    label→ ${expected.complexity.padEnd(12)} ${expected.keywords.join("+")}  [${expected.flags.join(", ")}]`);
+        }
       }
-      for (const expected of golden.expectedTasks) {
-        console.log(`    label→ ${expected.complexity.padEnd(12)} ${expected.keywords.join("+")}  [${expected.flags.join(", ")}]`);
-      }
+    } catch (error) {
+      scores[index] = scoreCase(golden, null);
+      lines.push(`✗ ${golden.id}: ${error instanceof Error ? error.message : error}`);
     }
-  } catch (error) {
-    scores.push(scoreCase(golden, null));
-    console.log(`✗ ${golden.id}: ${error instanceof Error ? error.message : error}`);
+
+    console.log(lines.join("\n"));
   }
 }
+
+const started = Date.now();
+await Promise.all(Array.from({ length: Math.min(concurrency, cases.length) }, worker));
+const elapsed = (Date.now() - started) / 1000;
 
 const report = aggregate(scores);
 const baseline: Report | null = existsSync(BASELINE) ? JSON.parse(readFileSync(BASELINE, "utf8")) : null;
 
-console.log(`\nModel: ${settings.model}\n`, report);
+const menit = Math.floor(elapsed / 60);
+const durasi = menit > 0 ? `${menit}m ${Math.round(elapsed % 60)}s` : `${elapsed.toFixed(1)}s`;
+console.log(`\nModel: ${settings.model} · ${cases.length} kasus · ${durasi} · ${concurrency} paralel\n`, report);
 
 const failures = checkGate(report, baseline);
 const problems = partial
