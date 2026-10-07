@@ -12,14 +12,32 @@ Golden set ada di `evals/golden/*.json` (array `GoldenCase`, lihat `src/lib/eval
 Syarat rilis (§5 PRD): ≥ 50 kasus, tiap kasus dilabeli ≥ 2 reviewer manusia. Runner menolak
 menyatakan "layak rilis" selama `labelledBy` belum terisi 2 nama, apa pun skornya.
 
-### Cara mereview satu kasus
+### Cara mereview
 
-1. Baca `requirement`, bayangkan Anda yang mengerjakan project itu.
-2. Lihat keluaran model sungguhan sebagai pembanding:
-   `npm run eval -- --workspace=<id> --limit=5 --show`
-3. Perbaiki `expectedTasks`: `keywords` (kata yang pasti muncul di nama/alasan/rincian task),
-   `complexity`, dan `flags`.
-4. Tambahkan nama Anda ke `labelledBy`, dan hapus `"draft": true` begitu dua reviewer setuju.
+```bash
+npm run label -- --reviewer="Nama Anda"
+```
+
+Alat itu menampilkan kasus yang belum Anda setujui satu per satu, lengkap dengan label
+draftnya. Pilihan tiap kasus:
+
+| Tombol | Arti |
+| --- | --- |
+| `Enter` | setuju — nama Anda dicatat di `labelledBy` |
+| `e` | buka JSON kasus di `$EDITOR` untuk diperbaiki dulu, lalu disetujui |
+| `s` | lewati (misalnya ragu, mau dipikir lagi) |
+| `q` | simpan dan keluar |
+
+Kemajuan disimpan setelah tiap persetujuan, jadi aman dihentikan kapan saja dan dilanjutkan
+nanti. Suntingan yang melanggar skema (complexity/flag salah tulis) ditolak di tempat.
+`"draft": true` dibuang otomatis begitu dua reviewer menyetujui kasus yang sama.
+
+Reviewer kedua menjalankan perintah yang sama dengan namanya sendiri — kasus yang sudah ia
+setujui tidak ditampilkan lagi.
+
+Saat memperbaiki label, isi `expectedTasks`: `keywords` (kata yang pasti muncul di
+nama/alasan/rincian task hasil AI), `complexity`, dan `flags`. Untuk pembanding, lihat
+keluaran model sungguhan: `npm run eval -- --workspace=<id> --limit=5 --show`.
 
 Catatan pelabelan flag: beberapa flag ditambahkan guardrail secara otomatis
 (`src/lib/ai/analyze.ts`) — `THIRD_PARTY_DEPENDENCY` untuk kata kunci pihak ketiga,

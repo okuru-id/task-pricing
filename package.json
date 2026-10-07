@@ -9,7 +9,8 @@
     "lint": "eslint",
     "test": "vitest",
     "test:run": "vitest run",
-    "eval": "tsx --env-file=.env scripts/eval.mts"
+    "eval": "tsx --env-file=.env scripts/eval.mts",
+    "label": "tsx scripts/label.mts"
   },
   "dependencies": {
     "@ai-sdk/openai": "^4.0.84",

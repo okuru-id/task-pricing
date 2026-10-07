@@ -103,7 +103,7 @@ Setup lokal: Postgres jalan di Docker (`taskpricer-db`, port 5433). Jalankan `np
 - [ ] Billing SaaS (Midtrans/Xendit/Stripe)
 
 ## Evaluation & Release Gate (§3, §5 — wajib sebelum rilis)
-- [ ] Golden set: 50 requirement berlabel (2 reviewer). `evals/golden/v1.json` kini berisi **53 kasus dengan label draft** (`"draft": true`, `labelledBy: []`) — **masih butuh verifikasi 2 reviewer manusia** sebelum sah jadi bukti rilis. Cara mereview ada di `evals/README.md`
+- [ ] Golden set: 50 requirement berlabel (2 reviewer). Pelabelan dibantu `npm run label -- --reviewer="Nama"` (lihat `evals/README.md`). `evals/golden/v1.json` kini berisi **53 kasus dengan label draft** (`"draft": true`, `labelledBy: []`) — **masih butuh verifikasi 2 reviewer manusia** sebelum sah jadi bukti rilis. Cara mereview ada di `evals/README.md`
 - [ ] **Temuan eval pertama terhadap model sungguhan** (`glm/glm-5.3-flash`, 3 kasus, `--limit=3 --show`): extraction recall 100% dan schema validity 100%, tapi **complexity accuracy 25%** dan **flag precision 29%**. Dua sebab terpisah:
   1. Model melebih-lebihkan kompleksitas — "Integrasi login Google" dan "Update status pesanan jadi Dibayar" dinilai `very_complex`. Akibatnya harga jadi range kustom yang harus diisi manual, padahal mestinya `medium`. Perlu diuji dengan model yang lebih kuat sebelum menyalahkan prompt
   2. Flag false positive dari dua arah: model mengarang flag sendiri (`DATA_MIGRATION` pada task pembuatan akun), dan `THIRD_PARTY_HINTS` di `src/lib/ai/analyze.ts` terlalu luas — task "Kirim email konfirmasi" ikut kena `THIRD_PARTY_DEPENDENCY` hanya karena namanya memuat kata "pembayaran". Mempersempit regex ini menukar risiko underprice (§2 US4) dengan presisi flag — **keputusan produk, belum diambil**
