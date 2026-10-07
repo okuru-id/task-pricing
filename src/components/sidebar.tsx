@@ -25,9 +25,42 @@ export function Sidebar({
   signOutSlot: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const isActive = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
 
   return (
-    <aside className="bg-sidebar flex w-60 shrink-0 flex-col gap-2 border-r p-5">
+    <>
+      {/*
+        Mobile: sidebar 240px tidak muat di layar 375px. Mengikuti design "Dashboard - Mobile":
+        navigasi pindah ke tab bar bawah, dan tombol New Estimation jadi tombol melayang
+        agar aksi utama tetap sejangkauan ibu jari.
+      */}
+      <Link
+        href="/estimations/new"
+        title="New Estimation"
+        className="bg-primary text-primary-foreground fixed right-4 bottom-[86px] z-40 flex size-12 items-center justify-center rounded-full shadow-lg lg:hidden"
+      >
+        <Plus className="size-5" />
+      </Link>
+
+      <nav className="bg-sidebar fixed inset-x-0 bottom-0 z-40 flex gap-1 border-t px-4 pt-2 pb-[max(1rem,env(safe-area-inset-bottom))] lg:hidden">
+        {NAV.map(({ href, label, icon: Icon }) => (
+          <Link
+            key={href}
+            href={href}
+            className={cn(
+              "flex flex-1 flex-col items-center gap-1 rounded-[10px] py-1.5 text-[11px]",
+              isActive(href)
+                ? "bg-primary-soft text-primary font-medium"
+                : "text-muted-foreground",
+            )}
+          >
+            <Icon className="size-[18px]" />
+            {label}
+          </Link>
+        ))}
+      </nav>
+
+      <aside className="bg-sidebar hidden w-60 shrink-0 flex-col gap-2 border-r p-5 lg:flex">
       <Link href="/dashboard" className="flex items-center gap-2.5 pb-4">
         <div className="bg-primary flex size-8 items-center justify-center rounded-lg">
           <Calculator className="text-primary-foreground size-[18px]" />
@@ -76,6 +109,7 @@ export function Sidebar({
           {signOutSlot}
         </div>
       </div>
-    </aside>
+      </aside>
+    </>
   );
 }

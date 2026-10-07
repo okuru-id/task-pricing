@@ -13,7 +13,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { getDashboardStats, listProjects } from "@/lib/data/projects";
-import { formatIDR, formatRange, formatRelativeDay } from "@/lib/format";
+import { formatIDR, formatIDRShort, formatRange, formatRelativeDay } from "@/lib/format";
 import { STATUS_LABEL } from "@/lib/labels";
 import { cn } from "@/lib/utils";
 import { requireScope } from "@/lib/workspace";
@@ -54,22 +54,29 @@ export default async function DashboardPage({
     <div className="flex flex-col gap-5">
       <header className="flex items-start justify-between gap-4">
         <div className="space-y-1">
-          <h1 className="text-[26px] leading-tight font-bold">{greeting()} 👋</h1>
+          <h1 className="text-[22px] leading-tight font-bold lg:text-[26px]">{greeting()} 👋</h1>
           <p className="text-muted-foreground text-[13px]">
             {today} · {stats.awaitingCount} quotation menunggu keputusan klien
           </p>
         </div>
+        {/* Di mobile aksi ini sudah tersedia sebagai tombol melayang (lihat Sidebar). */}
         <Link
           href="/estimations/new"
-          className="bg-primary text-primary-foreground hover:bg-primary/90 flex h-10 shrink-0 items-center gap-2 rounded-lg px-4 text-sm font-medium"
+          className="bg-primary text-primary-foreground hover:bg-primary/90 hidden h-10 shrink-0 items-center gap-2 rounded-lg px-4 text-sm font-medium lg:flex"
         >
           <Plus className="size-4" />
           New Estimation
         </Link>
       </header>
 
+      {/*
+        Mobile mengikuti design "Dashboard - Mobile": pendapatan jadi kartu utama berlatar
+        primary, tiga KPI sisanya mengecil dan berjajar. `sm:contents` membuat pembungkus
+        itu lenyap di layar lebar sehingga grid 4 kolom tetap seperti semula.
+      */}
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <KpiCard
+          hero
           label="Estimasi pendapatan bulan ini"
           value={formatIDR(stats.revenue.base)}
           icon={<Wallet className="text-primary size-4" />}
@@ -83,7 +90,10 @@ export default async function DashboardPage({
               : { text: "Quoted + Accepted", class: "bg-muted text-muted-foreground" }
           }
         />
+
+        <div className="grid grid-cols-3 gap-3 sm:contents">
         <KpiCard
+          compact
           label="Project aktif"
           value={String(stats.activeCount)}
           icon={<FolderOpen className="text-warning size-4" />}
@@ -94,6 +104,7 @@ export default async function DashboardPage({
           }}
         />
         <KpiCard
+          compact
           label="Tingkat diterima"
           value={stats.acceptanceRate === null ? "—" : `${stats.acceptanceRate}%`}
           icon={<BadgeCheck className="text-success size-4" />}
@@ -110,8 +121,10 @@ export default async function DashboardPage({
           }}
         />
         <KpiCard
+          compact
           label="Rata-rata nilai project"
           value={formatIDR(stats.averageValue)}
+          shortValue={formatIDRShort(stats.averageValue)}
           icon={<TrendingUp className="text-primary size-4" />}
           iconClass="bg-primary-soft"
           pill={{
@@ -119,6 +132,7 @@ export default async function DashboardPage({
             class: "bg-muted text-muted-foreground",
           }}
         />
+        </div>
       </section>
 
       <section className="grid gap-4 lg:grid-cols-[1fr_380px]">
@@ -203,7 +217,42 @@ export default async function DashboardPage({
         ))}
       </nav>
 
-      <section className="bg-card overflow-hidden rounded-[10px] border">
+      {/* Mobile: tabel 5 kolom tidak terbaca di 375px — daftar kartu sesuai design mobile. */}
+      <section className="flex flex-col gap-3 sm:hidden">
+        {projects.length === 0 && (
+          <p className="text-muted-foreground bg-card rounded-xl border p-6 text-center text-[13px]">
+            Belum ada project.{" "}
+            <Link href="/estimations/new" className="text-primary font-medium">
+              Buat estimasi pertama
+            </Link>
+          </p>
+        )}
+
+        {projects.map((project) => (
+          <Link
+            key={project.id}
+            href={`/projects/${project.id}`}
+            className="bg-card flex flex-col gap-1.5 rounded-xl border p-3.5"
+          >
+            <div className="flex items-center justify-between gap-2">
+              <span className="min-w-0 flex-1 truncate text-sm font-semibold">
+                {project.name}
+              </span>
+              <StatusBadge status={project.status} />
+            </div>
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-muted-foreground truncate text-xs">
+                {project.clientName ?? "Tanpa klien"} · {formatRelativeDay(project.updatedAt)}
+              </span>
+              <span className="text-[13px] font-semibold tabular-nums">
+                {formatIDR(project.value.base)}
+              </span>
+            </div>
+          </Link>
+        ))}
+      </section>
+
+      <section className="bg-card hidden overflow-hidden rounded-[10px] border sm:block">
         <Table>
           <TableHeader>
             <TableRow className="bg-background hover:bg-background">
@@ -263,36 +312,82 @@ export default async function DashboardPage({
   );
 }
 
+/**
+ * `hero` dan `compact` hanya berlaku di bawah breakpoint sm — di layar lebar keempat kartu
+ * tetap identik seperti design desktop.
+ */
 function KpiCard({
   label,
   value,
   icon,
   iconClass,
   pill,
+  hero,
+  shortValue,
+  compact,
 }: {
   label: string;
   value: string;
   icon: React.ReactNode;
   iconClass: string;
   pill: { text: string; class: string };
+  hero?: boolean;
+  /** Nilai ringkas untuk kolom sempit di mobile (mis. "Rp18,6 jt"). */
+  shortValue?: string;
+  compact?: boolean;
 }) {
   return (
-    <Card className="rounded-[14px] [--card-spacing:--spacing(5)]">
-      <CardContent className="flex flex-col gap-3.5">
+    <Card
+      className={cn(
+        "rounded-[14px] [--card-spacing:--spacing(5)]",
+        hero && "max-sm:bg-primary max-sm:border-transparent",
+        compact && "max-sm:rounded-xl max-sm:[--card-spacing:--spacing(3)]",
+      )}
+    >
+      <CardContent className={cn("flex flex-col gap-3.5", compact && "max-sm:gap-1")}>
         <div className="flex items-start justify-between gap-2">
-          <p className="text-muted-foreground text-xs font-medium">{label}</p>
+          <p
+            className={cn(
+              "text-muted-foreground text-xs font-medium",
+              hero && "max-sm:text-primary-fg-muted max-sm:text-[13px]",
+              compact && "max-sm:order-2 max-sm:text-[11px]",
+            )}
+          >
+            {label}
+          </p>
           <div
             className={cn(
               "flex size-8 shrink-0 items-center justify-center rounded-lg",
               iconClass,
+              compact && "max-sm:hidden",
             )}
           >
             {icon}
           </div>
         </div>
-        <p className="text-[28px] leading-none font-bold tabular-nums">{value}</p>
+        <p
+          className={cn(
+            "text-[28px] leading-none font-bold tabular-nums",
+            hero && "max-sm:text-primary-foreground",
+            compact && "max-sm:order-1 max-sm:text-base",
+          )}
+        >
+          {shortValue ? (
+            <>
+              <span className="sm:hidden">{shortValue}</span>
+              <span className="hidden sm:inline">{value}</span>
+            </>
+          ) : (
+            value
+          )}
+        </p>
         <span
-          className={cn("w-fit rounded-[10px] px-2 py-0.5 text-xs font-semibold", pill.class)}
+          className={cn(
+            "w-fit rounded-[10px] px-2 py-0.5 text-xs font-semibold",
+            pill.class,
+            hero && "max-sm:bg-white/15 max-sm:text-primary-foreground",
+            compact && "max-sm:hidden",
+          )}
         >
           {pill.text}
         </span>

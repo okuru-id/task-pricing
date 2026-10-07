@@ -8,6 +8,29 @@ export function formatIDR(value: number): string {
   return idr.format(value);
 }
 
+/**
+ * Versi ringkas untuk kolom sempit di mobile: "Rp18,6 jt", "Rp1,2 M".
+ * Angka penuh tetap dipakai di layar lebar dan di quotation — ini hanya untuk tampilan padat.
+ */
+export function formatIDRShort(value: number): string {
+  const satuan: [number, string][] = [
+    [1_000_000_000, "M"],
+    [1_000_000, "jt"],
+    [1_000, "rb"],
+  ];
+
+  for (const [batas, label] of satuan) {
+    if (Math.abs(value) >= batas) {
+      const angka = value / batas;
+      // Satu desimal hanya bila berarti: 18,6 jt tapi 20 jt (bukan 20,0 jt).
+      const teks = angka >= 100 || Number.isInteger(angka) ? angka.toFixed(0) : angka.toFixed(1);
+      return `Rp${teks.replace(".", ",")} ${label}`;
+    }
+  }
+
+  return formatIDR(value);
+}
+
 /** "Rp1.500.000 – Rp2.000.000" untuk task Very Complex (§2). */
 export function formatRange(min: number, max: number): string {
   return `${formatIDR(min)} – ${formatIDR(max)}`;

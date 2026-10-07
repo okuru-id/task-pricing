@@ -44,7 +44,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         }
       />
 
-      <main className="min-w-0 flex-1 p-7">{children}</main>
+      {/* pb besar di mobile menyediakan ruang untuk tab bar + tombol melayang. */}
+      <main className="min-w-0 flex-1 px-4 pt-6 pb-28 lg:p-7">{children}</main>
     </div>
   );
 }
