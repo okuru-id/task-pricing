@@ -37,6 +37,20 @@ describe("applyGuardrails", () => {
     expect(result.flags).toContain("THIRD_PARTY_DEPENDENCY");
   });
 
+  it("tidak tertipu kata yang kebetulan memuat 'api' seperti Rapikan/terapi", () => {
+    const result = applyGuardrails(
+      task({ name: "Rapikan tampilan daftar produk", breakdown: ["Perbaiki jarak antar kartu"] }),
+    );
+    expect(result.flags).not.toContain("THIRD_PARTY_DEPENDENCY");
+  });
+
+  it("tetap menandai 'API' sebagai kata utuh", () => {
+    const result = applyGuardrails(
+      task({ name: "Sambungkan API pihak ketiga", breakdown: ["Panggil endpoint mitra"] }),
+    );
+    expect(result.flags).toContain("THIRD_PARTY_DEPENDENCY");
+  });
+
   it("memberi DATA_MIGRATION pada task migrasi data", () => {
     const result = applyGuardrails(task({ name: "Migrasi data produk lama" }));
     expect(result.flags).toContain("DATA_MIGRATION");

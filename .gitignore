@@ -40,3 +40,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Hasil run eval terakhir (data mentah untuk diagnosa, bukan artefak yang perlu di-share)
+evals/last-run.json

@@ -29,9 +29,14 @@ const COMPLEXITY_MAP: Record<AiTask["complexity"], Complexity> = {
 
 const CONFIDENCE_MAP = { low: "LOW", medium: "MEDIUM", high: "HIGH" } as const;
 
-/** Kata kunci yang menandakan task menyembunyikan kompleksitas (§2 US4). */
+/**
+ * Kata kunci yang menandakan task menyembunyikan kompleksitas (§2 US4).
+ *
+ * Batas kata (\b) wajib untuk token pendek: tanpa itu "api" cocok dengan "Rapikan" dan "terapi",
+ * sehingga task tak berdosa ikut ditandai tergantung pihak ketiga.
+ */
 const THIRD_PARTY_HINTS =
-  /payment|pembayaran|midtrans|xendit|stripe|qris|gateway|whatsapp|api|integrasi|integration|webhook|oauth|sso|google login/i;
+  /payment|pembayaran|midtrans|xendit|stripe|qris|gateway|whatsapp|\bapi\b|integrasi|integration|webhook|oauth|\bsso\b|google login/i;
 const MIGRATION_HINTS = /migrasi|migration|import data|pindah data/i;
 
 export { AnalysisError } from "./errors";

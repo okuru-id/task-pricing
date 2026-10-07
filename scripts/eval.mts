@@ -53,6 +53,15 @@ const scores: ReturnType<typeof scoreCase>[] = new Array(cases.length);
 const show = process.argv.includes("--show");
 let cursor = 0;
 
+/**
+ * Keluaran mentah tiap kasus disimpan karena satu run penuh memakan ~20 menit dan biaya model.
+ * Dengan ini, menelusuri "kenapa complexity meleset" atau "task mana yang dianggap halusinasi"
+ * tidak perlu memanggil model lagi — cukup baca `evals/last-run.json`.
+ */
+const RUN_LOG = "evals/last-run.json";
+const runLog: { id: string; requirement: string; tasks: unknown; expected: unknown; error?: string }[] =
+  new Array(cases.length);
+
 async function worker() {
   while (cursor < cases.length) {
     const index = cursor++;
@@ -70,6 +79,12 @@ async function worker() {
         flags: task.flags,
       }));
       scores[index] = scoreCase(golden, tasks);
+      runLog[index] = {
+        id: golden.id,
+        requirement: golden.requirement,
+        tasks,
+        expected: golden.expectedTasks,
+      };
       lines.push(`✓ ${golden.id}: ${tasks.length} task`);
 
       // --show menampilkan keluaran model mentah: dipakai reviewer saat melabeli
@@ -83,8 +98,16 @@ async function worker() {
         }
       }
     } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
       scores[index] = scoreCase(golden, null);
-      lines.push(`✗ ${golden.id}: ${error instanceof Error ? error.message : error}`);
+      runLog[index] = {
+        id: golden.id,
+        requirement: golden.requirement,
+        tasks: null,
+        expected: golden.expectedTasks,
+        error: message,
+      };
+      lines.push(`✗ ${golden.id}: ${message}`);
     }
 
     console.log(lines.join("\n"));
@@ -97,6 +120,8 @@ const elapsed = (Date.now() - started) / 1000;
 
 const report = aggregate(scores);
 const baseline: Report | null = existsSync(BASELINE) ? JSON.parse(readFileSync(BASELINE, "utf8")) : null;
+
+writeFileSync(RUN_LOG, JSON.stringify(runLog.filter(Boolean), null, 2) + "\n");
 
 const menit = Math.floor(elapsed / 60);
 const durasi = menit > 0 ? `${menit}m ${Math.round(elapsed % 60)}s` : `${elapsed.toFixed(1)}s`;
