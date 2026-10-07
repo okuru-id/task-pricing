@@ -11,3 +11,6 @@ export const AI_PROVIDERS = {
 export type AiProvider = keyof typeof AI_PROVIDERS;
 
 export const OLLAMA_DEFAULT_BASE_URL = "http://localhost:11434/v1";
+
+/** Dipakai saat Base URL dikosongkan (berarti OpenAI resmi). */
+export const DEFAULT_OPENAI_BASE_URL = "https://api.openai.com/v1";

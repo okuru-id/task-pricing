@@ -4,10 +4,10 @@ import { revalidatePath } from "next/cache";
 import { generateText } from "ai";
 import { z } from "zod";
 
-import { OLLAMA_DEFAULT_BASE_URL, keyHint, validateBaseUrl } from "@/lib/ai/config";
-import { privateEndpointsAllowed } from "@/lib/ai/guarded-fetch";
+import { DEFAULT_OPENAI_BASE_URL, OLLAMA_DEFAULT_BASE_URL, keyHint, validateBaseUrl } from "@/lib/ai/config";
+import { outboundFetch, privateEndpointsAllowed } from "@/lib/ai/guarded-fetch";
 import { AiConfigError, requireAiSettings, resolveModel } from "@/lib/ai/provider";
-import { SecretError, encryptSecret } from "@/lib/crypto";
+import { SecretError, decryptSecret, encryptSecret } from "@/lib/crypto";
 import { prisma } from "@/lib/prisma";
 import { requireScope } from "@/lib/workspace";
 
@@ -99,6 +99,75 @@ export async function testAiConnection(): Promise<ActionResult> {
   } catch (error) {
     if (error instanceof AiConfigError) return { ok: false, error: error.message };
     return { ok: false, error: `Koneksi ke model gagal: ${error instanceof Error ? error.message : "penyebab tidak diketahui"}` };
+  }
+}
+
+const listSchema = z.object({
+  baseUrl: z.string().trim().max(500).optional(),
+  /** Kosong = pakai key tersimpan (user belum mengetik ulang). */
+  apiKey: z.string().trim().max(500).optional(),
+});
+
+export type ListModelsResult =
+  | { ok: true; models: string[] }
+  | { ok: false; error: string };
+
+/**
+ * Ambil daftar model dari provider (`GET {baseUrl}/models`, format OpenAI; Ollama juga
+ * menyediakannya lewat endpoint kompatibel). Memakai nilai yang sedang diketik di form bila ada,
+ * supaya user bisa melihat daftar sebelum menyimpan. Tetap lewat guard SSRF.
+ */
+export async function listModels(input: unknown): Promise<ListModelsResult> {
+  const { workspaceId } = await requireScope();
+
+  const parsed = listSchema.safeParse(input ?? {});
+  if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message };
+
+  const stored = await prisma.aiConfig.findFirst({ where: { workspaceId }, orderBy: { createdAt: "desc" } });
+
+  const rawBaseUrl = parsed.data.baseUrl || stored?.baseUrl || DEFAULT_OPENAI_BASE_URL;
+  const checked = validateBaseUrl(rawBaseUrl, { allowPrivate: privateEndpointsAllowed() });
+  if (!checked.ok) return { ok: false, error: checked.error };
+
+  let apiKey = parsed.data.apiKey ?? "";
+  if (!apiKey && stored?.apiKeyEnc) {
+    try {
+      apiKey = decryptSecret(stored.apiKeyEnc);
+    } catch (error) {
+      if (error instanceof SecretError) return { ok: false, error: error.message };
+      throw error;
+    }
+  }
+
+  try {
+    const response = await outboundFetch()(`${checked.url}/models`, {
+      headers: apiKey ? { Authorization: `Bearer ${apiKey}` } : {},
+    });
+
+    if (!response.ok) {
+      return {
+        ok: false,
+        error: `Provider menolak permintaan daftar model (HTTP ${response.status}). Isi nama model secara manual.`,
+      };
+    }
+
+    const body = (await response.json()) as { data?: { id?: unknown }[]; models?: { name?: unknown }[] };
+    // Format OpenAI: {data:[{id}]}. Ollama non-kompatibel: {models:[{name}]}.
+    const models = [
+      ...(body.data ?? []).map((item) => item.id),
+      ...(body.models ?? []).map((item) => item.name),
+    ].filter((id): id is string => typeof id === "string" && id.length > 0);
+
+    if (models.length === 0) {
+      return { ok: false, error: "Provider tidak mengembalikan satu pun model. Isi nama model secara manual." };
+    }
+
+    return { ok: true, models: [...new Set(models)].sort((a, b) => a.localeCompare(b)) };
+  } catch (error) {
+    return {
+      ok: false,
+      error: `Gagal mengambil daftar model: ${error instanceof Error ? error.message : "penyebab tidak diketahui"}`,
+    };
   }
 }
 

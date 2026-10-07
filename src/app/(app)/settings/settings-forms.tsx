@@ -13,7 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { AI_PROVIDERS, OLLAMA_DEFAULT_BASE_URL, type AiProvider } from "@/lib/ai/providers";
 import type { AiConfigView } from "@/lib/ai/provider";
 
-import { saveAiSettings, saveBranding, testAiConnection, type ActionResult } from "./actions";
+import { listModels, saveAiSettings, saveBranding, testAiConnection, type ActionResult } from "./actions";
 
 function useSave() {
   const router = useRouter();
@@ -82,7 +82,26 @@ export function SettingsForms({
   const [apiKey, setApiKey] = useState("");
   const [clearKey, setClearKey] = useState(false);
 
+  // Daftar model dari provider. Kosong = kolom model tetap ketikan bebas, karena tidak
+  // semua gateway menyediakan endpoint /models.
+  const [models, setModels] = useState<string[]>([]);
+  const [loadingModels, setLoadingModels] = useState(false);
+
   const isOllama = provider === "ollama";
+
+  const loadModels = async () => {
+    setLoadingModels(true);
+    const result = await listModels({ baseUrl, apiKey: isOllama ? "" : apiKey });
+    setLoadingModels(false);
+
+    if (!result.ok) {
+      toast.error(result.error);
+      return;
+    }
+
+    setModels(result.models);
+    toast.success(`${result.models.length} model ditemukan`);
+  };
 
   const [brand, setBrand] = useState({
     companyName: branding.companyName ?? "",
@@ -185,12 +204,57 @@ export function SettingsForms({
 
         <div className="grid gap-4 sm:grid-cols-[1fr_140px]">
           <Field label="Model">
-            <Input
-              value={model}
-              placeholder="mis. gpt-4o-mini atau llama3.1"
-              onChange={(e) => setModel(e.target.value)}
-              className="h-9 text-[13px]"
-            />
+            <div className="space-y-1.5">
+              {models.length > 0 ? (
+                <Select
+                  items={Object.fromEntries(models.map((id) => [id, id]))}
+                  value={model}
+                  onValueChange={(value) => setModel(value ?? "")}
+                >
+                  <SelectTrigger className="h-9 w-full text-[13px]">
+                    <SelectValue placeholder="Pilih model" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {models.map((id) => (
+                      <SelectItem key={id} value={id}>
+                        {id}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <Input
+                  value={model}
+                  placeholder="mis. gpt-4o-mini atau llama3.1"
+                  onChange={(e) => setModel(e.target.value)}
+                  className="h-9 text-[13px]"
+                />
+              )}
+
+              <div className="flex items-center gap-3 text-xs">
+                <button
+                  type="button"
+                  onClick={loadModels}
+                  disabled={loadingModels}
+                  className="text-primary font-medium hover:underline disabled:opacity-60"
+                >
+                  {loadingModels
+                    ? "Memuat…"
+                    : models.length > 0
+                      ? "Muat ulang daftar"
+                      : "Muat daftar dari provider"}
+                </button>
+                {models.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setModels([])}
+                    className="text-muted-foreground hover:underline"
+                  >
+                    Ketik manual
+                  </button>
+                )}
+              </div>
+            </div>
           </Field>
           <Field label="Temperature (0–2)">
             <Input

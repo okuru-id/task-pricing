@@ -4,7 +4,7 @@ import { isPrivateHostname } from "./net";
 
 // Hanya untuk kode server. Client component wajib mengimpor langsung dari "./providers",
 // karena modul ini menarik node:net lewat ./net dan akan merusak build browser.
-export { AI_PROVIDERS, OLLAMA_DEFAULT_BASE_URL, type AiProvider } from "./providers";
+export { AI_PROVIDERS, DEFAULT_OPENAI_BASE_URL, OLLAMA_DEFAULT_BASE_URL, type AiProvider } from "./providers";
 
 /** Host yang tidak pernah sah sebagai endpoint model, apa pun kebijakannya: metadata cloud/link-local. */
 const BLOCKED_HOSTS = new Set(["metadata.google.internal", "metadata", "instance-data"]);
