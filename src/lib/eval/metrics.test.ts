@@ -4,6 +4,7 @@ import {
   aggregate,
   checkGate,
   datasetProblems,
+  labelProblems,
   scoreCase,
   type GoldenCase,
   type OutputTask,
@@ -100,5 +101,35 @@ describe("datasetProblems", () => {
     const problems = datasetProblems([{ ...golden, labelledBy: ["a"] }]);
     expect(problems).toHaveLength(2);
     expect(datasetProblems(Array.from({ length: 50 }, (_, i) => ({ ...golden, id: String(i) })))).toEqual([]);
+  });
+});
+
+describe("labelProblems", () => {
+  it("menerima label yang sehat", () => {
+    expect(labelProblems([golden])).toEqual([]);
+  });
+
+  it("menangkap complexity dan flag yang salah tulis", () => {
+    const salah: GoldenCase = {
+      ...golden,
+      expectedTasks: [
+        // @ts-expect-error — meniru typo pada file golden yang ditulis tangan
+        { keywords: ["login"], complexity: "Medium", flags: ["THIRD_PARTY"] },
+      ],
+    };
+    const problems = labelProblems([salah]);
+    expect(problems.some((p) => p.includes('complexity "Medium"'))).toBe(true);
+    expect(problems.some((p) => p.includes('flag "THIRD_PARTY"'))).toBe(true);
+  });
+
+  it("menangkap id ganda, requirement kosong, dan keyword kosong", () => {
+    const problems = labelProblems([
+      golden,
+      { ...golden, requirement: "  " },
+      { ...golden, id: "g2", expectedTasks: [{ keywords: [], complexity: "simple", flags: [] }] },
+    ]);
+    expect(problems.some((p) => p.includes("id ganda"))).toBe(true);
+    expect(problems.some((p) => p.includes("requirement kosong"))).toBe(true);
+    expect(problems.some((p) => p.includes("keywords kosong"))).toBe(true);
   });
 });

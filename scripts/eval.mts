@@ -8,6 +8,7 @@ import {
   aggregate,
   checkGate,
   datasetProblems,
+  labelProblems,
   scoreCase,
   type GoldenCase,
   type Report,
@@ -16,9 +17,21 @@ import {
 const GOLDEN_DIR = "evals/golden";
 const BASELINE = "evals/baseline.json";
 
-const cases: GoldenCase[] = readdirSync(GOLDEN_DIR)
+const all: GoldenCase[] = readdirSync(GOLDEN_DIR)
   .filter((file) => file.endsWith(".json"))
   .flatMap((file) => JSON.parse(readFileSync(join(GOLDEN_DIR, file), "utf8")) as GoldenCase[]);
+
+// Label cacat dicek lebih dulu: satu kasus = 4 panggilan model, percuma dibayar untuk label rusak.
+const broken = labelProblems(all);
+if (broken.length > 0) {
+  console.error("Label golden set bermasalah:\n- " + broken.join("\n- "));
+  process.exit(2);
+}
+
+// --limit untuk uji cepat/murah. Skor parsial tidak boleh jadi baseline atau bukti rilis.
+const limit = Number(process.argv.find((arg) => arg.startsWith("--limit="))?.split("=")[1]);
+const partial = Number.isFinite(limit) && limit > 0 && limit < all.length;
+const cases = partial ? all.slice(0, limit) : all;
 
 // Konfigurasi AI diambil dari database (diisi di Settings), bukan dari environment variable.
 const workspaceArg = process.argv.find((arg) => arg.startsWith("--workspace="))?.split("=")[1];
@@ -41,6 +54,17 @@ for (const golden of cases) {
     }));
     scores.push(scoreCase(golden, tasks));
     console.log(`✓ ${golden.id}: ${tasks.length} task`);
+
+    // --show menampilkan keluaran model mentah: dipakai reviewer saat melabeli
+    // dan saat menelusuri kenapa sebuah metrik jatuh.
+    if (process.argv.includes("--show")) {
+      for (const task of tasks) {
+        console.log(`    ${task.complexity.padEnd(12)} ${task.name}  [${task.flags.join(", ")}]`);
+      }
+      for (const expected of golden.expectedTasks) {
+        console.log(`    label→ ${expected.complexity.padEnd(12)} ${expected.keywords.join("+")}  [${expected.flags.join(", ")}]`);
+      }
+    }
   } catch (error) {
     scores.push(scoreCase(golden, null));
     console.log(`✗ ${golden.id}: ${error instanceof Error ? error.message : error}`);
@@ -53,11 +77,17 @@ const baseline: Report | null = existsSync(BASELINE) ? JSON.parse(readFileSync(B
 console.log(`\nModel: ${settings.model}\n`, report);
 
 const failures = checkGate(report, baseline);
-const problems = datasetProblems(cases);
+const problems = partial
+  ? [`dijalankan parsial (${cases.length}/${all.length} kasus) — bukan bukti rilis`]
+  : datasetProblems(cases);
 
 if (process.argv.includes("--update-baseline")) {
-  writeFileSync(BASELINE, JSON.stringify(report, null, 2) + "\n");
-  console.log(`Baseline disimpan ke ${BASELINE}`);
+  if (partial) {
+    console.log("\nBaseline TIDAK disimpan: skor parsial bukan baseline yang sah.");
+  } else {
+    writeFileSync(BASELINE, JSON.stringify(report, null, 2) + "\n");
+    console.log(`Baseline disimpan ke ${BASELINE}`);
+  }
 }
 
 if (failures.length > 0) console.log("\nGATE GAGAL:\n- " + failures.join("\n- "));

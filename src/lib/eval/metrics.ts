@@ -173,6 +173,56 @@ export function checkGate(report: Report, baseline?: Report | null): string[] {
   return failures;
 }
 
+const COMPLEXITIES: ReadonlySet<string> = new Set([
+  "simple",
+  "medium",
+  "complex",
+  "very_complex",
+]);
+
+const FLAGS: ReadonlySet<string> = new Set<TaskFlag>([
+  "NO_FLAG",
+  "CLARIFICATION_REQUIRED",
+  "COMPLEX_REVIEW",
+  "THIRD_PARTY_DEPENDENCY",
+  "DATABASE_REVIEW",
+  "ARCHITECTURE_REVIEW",
+  "DATA_MIGRATION",
+  "CHANGE_REQUEST",
+]);
+
+/**
+ * Label cacat (complexity salah tulis, flag tidak dikenal, keyword kosong) membuat skor
+ * salah tanpa suara: task yang benar dihitung meleset. Dicek sebelum model dipanggil.
+ */
+export function labelProblems(cases: GoldenCase[]): string[] {
+  const problems: string[] = [];
+  const seen = new Set<string>();
+
+  for (const item of cases) {
+    if (seen.has(item.id)) problems.push(`id ganda: ${item.id}`);
+    seen.add(item.id);
+
+    if (!item.requirement.trim()) problems.push(`${item.id}: requirement kosong`);
+    if (item.expectedTasks.length === 0) problems.push(`${item.id}: tidak punya expectedTasks`);
+
+    for (const [index, task] of item.expectedTasks.entries()) {
+      const at = `${item.id}[${index}]`;
+      if (!COMPLEXITIES.has(task.complexity)) {
+        problems.push(`${at}: complexity "${task.complexity}" tidak dikenal`);
+      }
+      if (task.keywords.length === 0 || task.keywords.some((word) => !word.trim())) {
+        problems.push(`${at}: keywords kosong`);
+      }
+      for (const flag of task.flags) {
+        if (!FLAGS.has(flag)) problems.push(`${at}: flag "${flag}" tidak dikenal`);
+      }
+    }
+  }
+
+  return problems;
+}
+
 /** Golden set hanya sah sebagai bukti rilis jika cukup banyak dan dilabeli ≥2 reviewer. */
 export function datasetProblems(cases: GoldenCase[]): string[] {
   const problems: string[] = [];
