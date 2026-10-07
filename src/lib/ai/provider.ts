@@ -1,38 +1,100 @@
 import { createOpenAI } from "@ai-sdk/openai";
 
+import { decryptSecret, SecretError } from "@/lib/crypto";
 import { prisma } from "@/lib/prisma";
 
+import { OLLAMA_DEFAULT_BASE_URL, type AiProvider } from "./config";
+
+/**
+ * Konfigurasi AI sepenuhnya dari database (diisi user di Settings — BYOK). TIDAK ada fallback ke environment
+ * variable: tanpa konfigurasi, analisis berhenti dengan pesan yang mengarahkan ke Settings.
+ */
 export interface AiSettings {
-  provider: string;
+  provider: AiProvider;
   model: string;
   temperature: number;
   systemPrompt: string | null;
-}
-
-const DEFAULTS: AiSettings = {
-  provider: "openai",
-  model: process.env.OPENAI_MODEL || "gpt-4o-mini",
-  temperature: 0.2,
-  systemPrompt: null,
-};
-
-export async function getAiSettings(workspaceId: string): Promise<AiSettings> {
-  const config = await prisma.aiConfig.findFirst({
-    where: { workspaceId },
-    orderBy: { createdAt: "desc" },
-  });
-
-  if (!config) return DEFAULTS;
-
-  return {
-    provider: config.provider,
-    model: config.model,
-    temperature: config.temperature,
-    systemPrompt: config.systemPrompt,
-  };
+  baseUrl: string | null;
+  apiKey: string | null;
 }
 
 export class AiConfigError extends Error {}
+
+/** Tampilan aman untuk klien: tanpa API key, hanya petunjuk 4 karakter terakhir. */
+export interface AiConfigView {
+  provider: AiProvider;
+  model: string;
+  temperature: number;
+  systemPrompt: string | null;
+  baseUrl: string | null;
+  hasKey: boolean;
+  keyHint: string | null;
+}
+
+const asProvider = (value: string): AiProvider => (value === "ollama" ? "ollama" : "openai");
+
+/** Konfigurasi untuk Settings (tanpa mendekripsi key). Null jika workspace belum pernah menyimpan. */
+export async function getAiConfigView(workspaceId: string): Promise<AiConfigView | null> {
+  const config = await prisma.aiConfig.findFirst({ where: { workspaceId }, orderBy: { createdAt: "desc" } });
+  if (!config) return null;
+
+  return {
+    provider: asProvider(config.provider),
+    model: config.model,
+    temperature: config.temperature,
+    systemPrompt: config.systemPrompt,
+    baseUrl: config.baseUrl,
+    hasKey: Boolean(config.apiKeyEnc),
+    keyHint: config.apiKeyHint,
+  };
+}
+
+/** Pesan kenapa konfigurasi belum bisa dipakai, atau null jika lengkap. */
+export function describeIncompleteConfig(view: AiConfigView | null): string | null {
+  if (!view) return "Belum ada konfigurasi AI. Atur provider, model, dan API key di Settings.";
+  if (!view.model.trim()) return "Model AI belum diisi di Settings.";
+  if (view.provider === "openai" && !view.hasKey) return "API key belum diisi di Settings.";
+  if (view.provider === "ollama" && !view.baseUrl) return "Base URL Ollama belum diisi di Settings.";
+  return null;
+}
+
+/** Konfigurasi lengkap termasuk API key terdekripsi, untuk memanggil model. Melempar AiConfigError bila belum siap. */
+export async function requireAiSettings(workspaceId: string): Promise<AiSettings> {
+  const config = await prisma.aiConfig.findFirst({ where: { workspaceId }, orderBy: { createdAt: "desc" } });
+
+  const problem = describeIncompleteConfig(
+    config && {
+      provider: asProvider(config.provider),
+      model: config.model,
+      temperature: config.temperature,
+      systemPrompt: config.systemPrompt,
+      baseUrl: config.baseUrl,
+      hasKey: Boolean(config.apiKeyEnc),
+      keyHint: config.apiKeyHint,
+    },
+  );
+  if (problem || !config) throw new AiConfigError(problem ?? "Belum ada konfigurasi AI.");
+
+  let apiKey: string | null = null;
+  if (config.apiKeyEnc) {
+    try {
+      apiKey = decryptSecret(config.apiKeyEnc);
+    } catch (error) {
+      const reason = error instanceof SecretError ? error.message : "penyebab tidak diketahui";
+      throw new AiConfigError(`API key tersimpan tidak bisa dipakai (${reason}). Masukkan ulang di Settings.`);
+    }
+  }
+
+  return {
+    provider: asProvider(config.provider),
+    model: config.model,
+    temperature: config.temperature,
+    systemPrompt: config.systemPrompt,
+    baseUrl: config.baseUrl,
+    apiKey,
+  };
+}
+
 
 const SSE_TERMINATOR = /data:\s*\[DONE\]\s*$/;
 
@@ -89,22 +151,16 @@ const sanitizingFetch: typeof fetch = async (input, init) => {
 
 /**
  * Semua provider lewat satu abstraksi OpenAI-compatible (§5 mitigasi vendor lock-in).
- * Ollama dilayani lewat endpoint /v1 bawaannya.
+ * Ollama dilayani lewat endpoint /v1 bawaannya. Hanya memakai `settings` — tidak membaca environment.
  */
 export function resolveModel(settings: AiSettings) {
   const isOllama = settings.provider === "ollama";
 
-  const baseURL = isOllama
-    ? process.env.OLLAMA_BASE_URL || "http://localhost:11434/v1"
-    : process.env.OPENAI_BASE_URL || undefined;
+  const baseURL = isOllama ? (settings.baseUrl ?? OLLAMA_DEFAULT_BASE_URL) : (settings.baseUrl ?? undefined);
+  const apiKey = isOllama ? "ollama" : settings.apiKey;
 
-  const apiKey = isOllama ? "ollama" : process.env.OPENAI_API_KEY;
-
-  if (!apiKey) {
-    throw new AiConfigError(
-      "OPENAI_API_KEY belum diisi. Set di .env, atau pilih provider Ollama di Settings.",
-    );
-  }
+  if (!apiKey) throw new AiConfigError("API key belum diisi di Settings.");
+  if (!settings.model.trim()) throw new AiConfigError("Model AI belum diisi di Settings.");
 
   // `.chat()` wajib: pemanggilan default memakai Responses API (/v1/responses),
   // sedangkan mayoritas endpoint OpenAI-compatible hanya menyediakan /v1/chat/completions.

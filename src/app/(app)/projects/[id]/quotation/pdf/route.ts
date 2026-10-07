@@ -14,7 +14,10 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ id: str
   const { workspaceId } = await requireScope();
   const { id } = await ctx.params;
 
-  const found = await getLatestQuotation(id, workspaceId);
+  const versionParam = Number(request.nextUrl.searchParams.get("v"));
+  const version = Number.isInteger(versionParam) && versionParam > 0 ? versionParam : undefined;
+
+  const found = await getLatestQuotation(id, workspaceId, version);
   if (!found?.quotation) return new Response("Penawaran tidak ditemukan", { status: 404 });
 
   const { project, quotation } = found;

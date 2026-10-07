@@ -1,15 +1,19 @@
-/** Probe manual provider AI: `npx tsx scripts/probe-ai.ts` */
+/**
+ * Probe manual provider AI: `npx tsx --env-file=.env scripts/probe-ai.mts --workspace=<id>`
+ * Konfigurasi dibaca dari database (Settings workspace), bukan dari environment variable.
+ */
 import { generateText, tool } from "ai";
 import { z } from "zod";
 
-import { resolveModel } from "../src/lib/ai/provider";
+import { requireAiSettings, resolveModel } from "../src/lib/ai/provider";
 
-const model = resolveModel({
-  provider: "openai",
-  model: process.env.OPENAI_MODEL || "gpt-4o-mini",
-  temperature: 0.2,
-  systemPrompt: null,
-});
+const workspaceId = process.argv.find((arg) => arg.startsWith("--workspace="))?.split("=")[1];
+if (!workspaceId) {
+  console.error("Wajib: --workspace=<id workspace>");
+  process.exit(2);
+}
+
+const model = resolveModel(await requireAiSettings(workspaceId));
 
 const result = await generateText({
   model,

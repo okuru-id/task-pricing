@@ -1,7 +1,7 @@
 "use client";
 
 import { useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { Copy, FilePlus2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -59,6 +59,7 @@ export function CopySummaryButton({ text }: { text: string }) {
 
 export function DeleteQuotationButton({ quotationId }: { quotationId: string }) {
   const router = useRouter();
+  const pathname = usePathname();
   const [pending, startTransition] = useTransition();
 
   const remove = () => {
@@ -67,6 +68,8 @@ export function DeleteQuotationButton({ quotationId }: { quotationId: string }) 
       const result = await deleteQuotation(quotationId);
       if (result.ok) {
         toast.success("Penawaran dihapus");
+        // Keluar dari ?v=… yang kini menunjuk versi terhapus; kembali ke versi terbaru.
+        router.replace(pathname);
         router.refresh();
       } else {
         toast.error(result.error);

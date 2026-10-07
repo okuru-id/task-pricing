@@ -1,4 +1,3 @@
-import { generateText, tool } from "ai";
 import type { Complexity, TaskFlag, TaskType } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
@@ -7,9 +6,8 @@ import { getPriceRules } from "@/lib/data/pricing";
 import { matchSuggestions } from "@/lib/milestones";
 import { priceTask, type PriceRules } from "@/lib/pricing-engine";
 
-import { analysisSchema, flagSchema, type AiTask, type Analysis } from "./schema";
-import { buildUserPrompt, SYSTEM_PROMPT } from "./prompt";
-import { getAiSettings, resolveModel, type AiSettings } from "./provider";
+import { AnalysisError } from "./errors";
+import { flagSchema, type AiTask, type Analysis } from "./schema";
 
 const TYPE_MAP: Record<AiTask["type"], TaskType> = {
   bug: "BUG",
@@ -36,7 +34,8 @@ const THIRD_PARTY_HINTS =
   /payment|pembayaran|midtrans|xendit|stripe|qris|gateway|whatsapp|api|integrasi|integration|webhook|oauth|sso|google login/i;
 const MIGRATION_HINTS = /migrasi|migration|import data|pindah data/i;
 
-export class AnalysisError extends Error {}
+export { AnalysisError } from "./errors";
+export { generateAnalysisWith } from "./runner";
 
 /**
  * Terapkan guardrail yang TIDAK boleh diserahkan ke AI.
@@ -99,78 +98,15 @@ function resolvePrice(task: AiTask, rules: PriceRules): number {
   return priceTask({ complexity }, rules).price;
 }
 
-/**
- * Structured output lewat tool call terpaksa, bukan `response_format: json_schema`.
- * Tool calling didukung luas (OpenAI, endpoint OpenAI-compatible, Ollama),
- * sedangkan json_schema banyak diabaikan gateway pihak ketiga (§5 vendor lock-in).
- */
-async function generateAnalysis(requirement: string, workspaceId: string): Promise<Analysis> {
-  return generateAnalysisWith(requirement, await getAiSettings(workspaceId));
-}
-
-/** Dipisah dari akses DB agar script eval offline bisa memanggilnya dengan settings eksplisit. */
-export async function generateAnalysisWith(
-  requirement: string,
-  settings: AiSettings,
-): Promise<Analysis> {
-  const model = resolveModel(settings);
-
-  const run = async (): Promise<Analysis> => {
-    const result = await generateText({
-      model,
-      temperature: settings.temperature,
-      system: settings.systemPrompt
-        ? `${SYSTEM_PROMPT}\n\nINSTRUKSI GLOBAL USER:\n${settings.systemPrompt}`
-        : SYSTEM_PROMPT,
-      prompt: buildUserPrompt(requirement),
-      tools: {
-        submit_analysis: tool({
-          description: "Kirimkan hasil analisis requirement dalam format terstruktur.",
-          inputSchema: analysisSchema,
-        }),
-      },
-      toolChoice: { type: "tool", toolName: "submit_analysis" },
-    });
-
-    const call = result.toolCalls.at(0);
-    if (!call) throw new Error("model tidak memanggil tool submit_analysis");
-
-    // Validasi ulang dengan Zod — jangan percaya begitu saja pada input tool.
-    return analysisSchema.parse(call.input);
-  };
-
-  try {
-    return await run();
-  } catch {
-    // §5: satu auto-retry sebelum menyerah. Jangan tampilkan harga palsu kalau tetap gagal.
-    try {
-      return await run();
-    } catch (error) {
-      throw new AnalysisError(
-        `AI gagal menghasilkan output yang valid: ${
-          error instanceof Error ? error.message : "penyebab tidak diketahui"
-        }`,
-      );
-    }
-  }
-}
-
-/** Jalankan analisis untuk sebuah estimation lalu simpan hasilnya (menimpa task lama). */
-export async function runAnalysis(estimationId: string, workspaceId: string) {
+/** Simpan hasil analisis ke estimation (menimpa task lama). Dipanggil di tahap akhir pipeline. */
+export async function persistAnalysis(estimationId: string, workspaceId: string, analysis: Analysis) {
   const estimation = await prisma.estimation.findFirst({
     where: { id: estimationId, project: { workspaceId, deletedAt: null } },
-    select: { id: true, requirement: true, projectId: true },
+    select: { id: true, projectId: true },
   });
-
   if (!estimation) throw new AnalysisError("Estimation tidak ditemukan");
-  if (estimation.requirement.trim().length < 50) {
-    throw new AnalysisError("Requirement terlalu pendek untuk dianalisis");
-  }
 
-  const [analysis, rules] = await Promise.all([
-    generateAnalysis(estimation.requirement, workspaceId),
-    getPriceRules(workspaceId),
-  ]);
+  const rules = await getPriceRules(workspaceId);
 
   const tasks = analysis.tasks.map(applyGuardrails);
 

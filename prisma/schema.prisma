@@ -52,6 +52,12 @@ enum ProjectStatus {
   ARCHIVED
 }
 
+enum AnalysisJobStatus {
+  RUNNING
+  FAILED
+  DONE
+}
+
 enum QuotationMode {
   DETAILED
   SUMMARY
@@ -138,7 +144,6 @@ model Workspace {
   pricingProfiles PricingProfile[]
   projects        Project[]
   aiConfigs       AiConfig[]
-  analysisRuns    AnalysisRun[]
 
   @@map("workspaces")
 }
@@ -190,6 +195,8 @@ model Project {
   name        String
   clientName  String?
   status      ProjectStatus @default(DRAFT)
+  /// Status sebelum diarsipkan, dipakai untuk memulihkan (un-archive). Null untuk project yang belum pernah diarsipkan.
+  archivedFrom ProjectStatus?
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
   deletedAt   DateTime?
@@ -215,6 +222,7 @@ model Estimation {
   milestones  Milestone[]
   quotations  Quotation[]
   aiEvalRuns  AiEvalRun[]
+  analysisJobs AnalysisJob[]
 
   @@map("estimations")
 }
@@ -346,6 +354,12 @@ model AiConfig {
   model       String
   temperature Float    @default(0.2)
   systemPrompt String?
+  /// Base URL endpoint OpenAI-compatible / Ollama. Null = endpoint resmi OpenAI.
+  baseUrl     String?
+  /// API key milik user (BYOK), terenkripsi AES-256-GCM — lihat src/lib/crypto.ts. Tidak pernah dikirim ke klien.
+  apiKeyEnc   String?
+  /// 4 karakter terakhir key, hanya untuk ditampilkan di Settings.
+  apiKeyHint  String?
   createdAt   DateTime @default(now())
 
   workspace Workspace @relation(fields: [workspaceId], references: [id])
@@ -364,14 +378,23 @@ model AiEvalRun {
   @@map("ai_eval_runs")
 }
 
-/// Catatan tiap panggilan analisis AI per workspace — dasar rate limit (§4 Security).
-model AnalysisRun {
-  id          String   @id @default(cuid())
-  workspaceId String
-  createdAt   DateTime @default(now())
+/// Status analisis AI per tahap. `data` menyimpan keluaran tiap tahap yang sudah selesai sehingga
+/// tahap yang gagal bisa diulang sendirian tanpa memanggil ulang tahap sebelumnya (§2 AI Analysis).
+model AnalysisJob {
+  id           String            @id @default(cuid())
+  estimationId String
+  status       AnalysisJobStatus @default(RUNNING)
+  /// Indeks tahap berikutnya yang akan dijalankan (0..4); 5 = selesai.
+  stage        Int               @default(0)
+  data         Json              @default("{}")
+  error        String?
+  /// Lease singkat agar dua permintaan bersamaan tidak menjalankan tahap yang sama dua kali.
+  lockedUntil  DateTime?
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
 
-  workspace Workspace @relation(fields: [workspaceId], references: [id])
+  estimation Estimation @relation(fields: [estimationId], references: [id])
 
-  @@index([workspaceId, createdAt])
-  @@map("analysis_runs")
+  @@index([estimationId, createdAt])
+  @@map("analysis_jobs")
 }

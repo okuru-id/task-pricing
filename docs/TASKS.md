@@ -17,7 +17,7 @@ Setup lokal: Postgres jalan di Docker (`taskpricer-db`, port 5433). Jalankan `np
 - [x] `requireScope()` di `src/lib/workspace.ts` sebagai satu-satunya pintu masuk query ber-scope `workspace_id`
 - [ ] Email magic link (butuh Resend/SMTP — digabung dengan Email quotation di v1.1)
 - [x] Test otomatis cross-tenant (`src/tenancy.integration.test.ts`, butuh `TEST_DATABASE_URL` ke Postgres yang sudah dimigrasi; di-skip tanpa itu)
-- [x] Rate limit analisis AI 20/jam/workspace (`src/lib/rate-limit.ts`, tabel `analysis_runs`; percobaan gagal ikut dihitung)
+- [x] ~~Rate limit analisis AI~~ — **tidak dipakai**: aplikasi BYOK (API key milik user), biaya model tidak ditanggung aplikasi, jadi tidak ada kuota. Kode dan tabel `analysis_runs` sudah dihapus
 
 ### 2. Database (§4 Data Model) — SELESAI
 - [x] Postgres lokal via Docker + `DATABASE_URL`
@@ -40,20 +40,21 @@ Setup lokal: Postgres jalan di Docker (`taskpricer-db`, port 5433). Jalankan `np
 - [x] Auto-retry 1x; jika tetap gagal → error jelas, **tanpa** membuat harga palsu (terverifikasi)
 - [x] Guardrails: auto-flag third-party/migrasi, Very Complex wajib range + ≥1 pertanyaan, confidence low → CLARIFICATION_REQUIRED
 - [x] UI progress 5 tahap
-- [x] UI Settings (`/settings`): provider/model/temperature/instruksi global + identitas perusahaan untuk PDF. API key tetap di `.env`
+- [x] UI Settings (`/settings`): provider, Base URL, model, temperature, instruksi global, **API key (BYOK)** + Tes koneksi, serta identitas perusahaan untuk PDF. **Konfigurasi AI hanya dari DB — tidak ada fallback ke env** (`OPENAI_*` tidak dibaca). Key dienkripsi AES-256-GCM (kunci turunan `AUTH_SECRET`), write-only di UI; Base URL divalidasi (anti-SSRF metadata). Tanpa konfigurasi lengkap analisis tidak dimulai dan user diarahkan ke Settings
 - [x] Halaman Pricing (`/pricing`): ubah harga per kompleksitas sebagai versi rule baru
-- [ ] Progress per tahap yang benar-benar granular (saat ini satu panggilan AI, tahap ditampilkan maju otomatis)
+- [x] Progress per tahap yang nyata (`src/lib/ai/stages.ts`, `job.ts`): extract → breakdown → kompleksitas → dependensi (4 panggilan AI, masing-masing satu tool call terstruktur) → estimasi (mesin harga + guardrail, tanpa AI). Keluaran tiap tahap disimpan di `analysis_jobs`; tahap yang gagal diulang sendirian ("Ulangi tahap ini"), analisis yang terhenti bisa dilanjutkan setelah reload. Tiap tahap wajib menjawab SEMUA task (jawaban parsial = tahap gagal).
+- [ ] Belum diukur terhadap model sungguhan: biaya/latensi ~4× panggilan dibanding satu panggilan, dan kualitas hasil bertahap vs satu panggilan — jalankan `npm run eval` sebelum rilis (script eval kini memakai pipeline bertahap yang sama)
 
 > **Catatan provider (penting):** `@ai-sdk/openai` default memakai Responses API. Kode memakai
 > `.chat()` agar lewat `/v1/chat/completions`. Ada pula `sanitizingFetch` di `src/lib/ai/provider.ts`
 > untuk gateway yang membalas non-streaming dengan `text/event-stream` + `data: [DONE]`.
-> Diagnosa provider: `npx tsx --env-file=.env scripts/probe-ai.mts`.
+> Diagnosa provider: `npx tsx --env-file=.env scripts/probe-ai.mts --workspace=<id>` (konfigurasi dibaca dari Settings workspace). Catatan: `AUTH_SECRET` wajib stabil — jika diganti, API key tersimpan tidak terbaca dan harus diisi ulang di Settings.
 
 ### 6. Pricing Engine — SELESAI
 - [x] Terhubung ke `pricing_profiles`/`pricing_rules` per workspace, fallback ke default
 - [x] `VERY_COMPLEX` wajib `custom_estimate_min/max`, menolak range terbalik
 - [x] Unit test (16 test lulus)
-- [ ] Snapshot harga ke `quotation_items` saat quotation dibuat (menyusul bersama Quotation)
+- [x] Snapshot harga ke `quotation_items` saat quotation dibuat
 
 ### 7. Task Review UI (§2) — SELESAI
 - [x] Tabel task: nama, tipe, kompleksitas, flag, confidence, harga + baris expand
@@ -69,7 +70,7 @@ Setup lokal: Postgres jalan di Docker (`taskpricer-db`, port 5433). Jalankan `np
 - [x] Halaman `/projects/[id]/clarification`: pertanyaan per task; edit/hapus/tambah (server action ter-scope workspace)
 - [x] Tombol "Copy all" (teks siap kirim, dikelompokkan per tugas)
 - [x] `VERY_COMPLEX` wajib minimal 1 pertanyaan: peringatan di UI + pertanyaan terakhir tidak bisa dihapus di server (§2 US4)
-- [ ] Tombol "Lanjut ke Penawaran" masih nonaktif sampai Quotation dibuat
+- [x] Tombol "Lanjut ke Penawaran" aktif (menuju `/projects/[id]/quotation`)
 
 ### 9. Quotation (§2) — SELESAI
 - [x] 3 mode: Detailed / Summary (per tipe + subtotal) / Client Friendly (tanpa istilah teknis) di `/projects/[id]/quotation`
@@ -83,21 +84,21 @@ Setup lokal: Postgres jalan di Docker (`taskpricer-db`, port 5433). Jalankan `np
 - [x] Status flow: Draft → Analyzed → Quoted → Accepted/Rejected → Completed → Archived (`src/lib/project-status.ts`); analisis ulang / versi quotation baru tidak menurunkan status
 - [x] Soft delete project & quotation (audit trail, `deletedAt`)
 - [x] Halaman History (`/history`): semua project + versi quotation, filter status, opsi tampilkan yang dihapus
-- [ ] Archived tidak bisa dikembalikan (belum ada alur un-archive)
+- [x] Un-archive: tombol "Pulihkan dari arsip" mengembalikan project ke status sebelum diarsipkan (`projects.archivedFrom`); jika isinya berubah (mis. quotation dihapus) diturunkan ke status yang konsisten, dan project lama tanpa riwayat ditebak dari isinya (`restoreTarget`)
 
 ---
 
 ## v1.1 — Should Have (backlog setelah MVP, §5)
 - [ ] Multiple pricing profiles penuh (switch per project) + UI assumptions/exclusions
 - [x] Milestone generator (`/projects/[id]/milestone`): saran AI disimpan saat analisis (task dicocokkan lewat nama, nama asing dibuang), tugas bisa dipindah antar milestone, rename/hapus/geser, subtotal per milestone, fallback "Susun otomatis per tipe" tanpa AI. Milestone belum ikut tampil di quotation/PDF
-- [ ] Quotation versioning + diff antar versi
+- [x] Quotation versioning + diff antar versi: pemilih versi (`?v=`), bandingkan dengan versi lain (`?compare=`) menampilkan item ditambah/dihapus/berubah (harga & kompleksitas), selisih total (termasuk range), perubahan asumsi/pengecualian (`src/lib/quotation-diff.ts`). PDF dan Copy Summary mengikuti versi yang dipilih
 - [ ] Email quotation (Resend/SMTP), template quotation multiple
 
 ## v2.0 — Phase 2–3 (backlog, §5)
 - [ ] Change Request workflow (flag `CHANGE_REQUEST`, bandingkan vs original scope)
 - [ ] Analytics: avg project value, win rate, estimate accuracy, complexity distribution
 - [ ] Team/organization multi-member + RBAC (role member/viewer)
-- [ ] AI provider management UI + local LLM onboarding
+- [ ] Manajemen multi-provider/fallback provider + local LLM onboarding (konfigurasi satu provider per workspace sudah ada di Settings)
 - [ ] Multi-format input (PDF/DOCX/XLSX)
 - [ ] Billing SaaS (Midtrans/Xendit/Stripe)
 

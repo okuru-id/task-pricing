@@ -1,7 +1,11 @@
 import { prisma } from "@/lib/prisma";
 
-/** Quotation terbaru sebuah project (ter-scope workspace), beserta branding workspace. Null jika project tak ditemukan. */
-export async function getLatestQuotation(projectId: string, workspaceId: string) {
+/**
+ * Quotation sebuah project (ter-scope workspace) beserta branding workspace; null jika project tak ditemukan.
+ * Tanpa `version` → versi terbaru. `quotation` null jika belum ada / versi yang diminta tidak ada.
+ * `versions` berisi seluruh versi aktif (terbaru dulu) untuk pemilih versi dan perbandingan.
+ */
+export async function getLatestQuotation(projectId: string, workspaceId: string, version?: number) {
   const project = await prisma.project.findFirst({
     where: { id: projectId, workspaceId, deletedAt: null },
     select: {
@@ -19,7 +23,6 @@ export async function getLatestQuotation(projectId: string, workspaceId: string)
           quotations: {
             where: { deletedAt: null },
             orderBy: { version: "desc" },
-            take: 1,
             include: { items: { orderBy: { order: "asc" } } },
           },
         },
@@ -28,5 +31,8 @@ export async function getLatestQuotation(projectId: string, workspaceId: string)
   });
 
   if (!project) return null;
-  return { project, quotation: project.estimations[0]?.quotations[0] ?? null };
+  const versions = project.estimations[0]?.quotations ?? [];
+  const quotation = version === undefined ? (versions[0] ?? null) : (versions.find((q) => q.version === version) ?? null);
+
+  return { project, quotation, versions };
 }

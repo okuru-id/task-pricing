@@ -1,6 +1,6 @@
 # PRD — TaskPricer: Freelance Task Estimator & Quotation (SaaS)
 
-> Restructured v2. Sumber: `taskpricer-prd.md`. Keputusan: **Next.js + Tailwind CSS**, **SaaS multi-user**.
+> Restructured v2. Sumber: `taskpricer-prd.md`. Keputusan: **Next.js + Tailwind CSS**, **SaaS multi-user**, **BYOK** (Bring Your Own Key — API key AI milik user, konfigurasi hanya dari UI/database, tanpa fallback ke environment variable, tanpa kuota analisis).
 
 ---
 
@@ -133,7 +133,7 @@ Multiple profile per user (Freelance Standard, Corporate, Maintenance, Custom). 
 
 ### Project Lifecycle
 
-Status: `Draft → Analyzed → Quoted → Accepted / Rejected → Completed → Archived`. Satu project boleh punya banyak versi estimation/quotation. Change request = task baru berflag `CHANGE_REQUEST` dibandingkan dengan original scope.
+Status: `Draft → Analyzed → Quoted → Accepted / Rejected → Completed → Archived`. Project yang diarsipkan dapat dipulihkan ke status sebelumnya (disesuaikan bila isinya sudah berubah). Satu project boleh punya banyak versi estimation/quotation. Change request = task baru berflag `CHANGE_REQUEST` dibandingkan dengan original scope.
 
 ### User Stories & Acceptance Criteria
 
@@ -168,7 +168,12 @@ Bukan: full project management, accounting, invoice system, CRM, ERP, time track
 
 ### Tool / Provider Requirements
 
-- **Provider yang didukung**: OpenAI API, OpenAI-compatible API, Ollama / local LLM. Default provider & model: `TBD` (user konfigurasi di Settings: provider, model, temperature, system prompt).
+- **Provider yang didukung**: OpenAI API, OpenAI-compatible API, Ollama / local LLM.
+- **BYOK — konfigurasi hanya dari UI/database**: tiap workspace mengisi sendiri di **Settings** → provider, Base URL, model, temperature, system prompt, dan **API key**. Disimpan di `ai_configs`. **Tidak ada default provider/model/key dan tidak ada fallback ke environment variable** (`OPENAI_*`, dsb. tidak dibaca). Biaya pemakaian ditagih langsung oleh provider ke akun user, sehingga aplikasi tidak menerapkan kuota/rate limit analisis.
+  - AC: tanpa konfigurasi lengkap, analisis tidak dimulai dan user diarahkan ke Settings (pesan jelas, bukan error teknis).
+  - AC: API key dienkripsi at-rest (AES-256-GCM, kunci turunan `AUTH_SECRET`), tidak pernah dikirim kembali ke klien (UI hanya menampilkan 4 karakter terakhir), dan tidak muncul di log. Isi key kosong saat menyimpan = pertahankan key lama; tersedia aksi hapus key.
+  - AC: tombol **Tes koneksi** mengirim satu permintaan kecil agar salah key/URL/model ketahuan sebelum analisis.
+  - AC: Base URL divalidasi (hanya http/https, tanpa kredensial di URL, alamat metadata cloud ditolak). Localhost diizinkan untuk Ollama/gateway lokal.
 - **Library**: Vercel AI SDK (`ai`) — satu antarmuka untuk semua provider di atas, dengan structured output (Zod schema).
 - **Custom skill/prompt**: user dapat menambah instruksi global (mis. "Selalu prioritaskan backend complexity", "Gunakan bahasa Indonesia untuk customer").
 
@@ -180,6 +185,8 @@ AI **tidak pernah** menentukan harga final.
 Requirement Parser → Task Extractor → Task Breaker → Complexity Analyzer
 → Risk Analyzer → [Pricing Engine (application logic)] → Quotation Generator
 ```
+
+**Eksekusi bertahap**: ekstraksi → breakdown → kompleksitas → dependensi (masing-masing satu panggilan model dengan structured output), lalu tahap estimasi oleh pricing engine tanpa AI. Keluaran tiap tahap disimpan (`analysis_jobs`) sehingga tahap yang gagal diulang sendirian dan analisis yang terhenti bisa dilanjutkan. Tiap tahap wajib menjawab semua task; jawaban parsial dianggap gagal.
 
 ### Structured Output (wajib JSON, divalidasi Zod)
 
@@ -274,7 +281,7 @@ users
       └── change_requests
 ```
 
-Tabel: `users`, `workspaces`, `workspace_members`, `pricing_profiles`, `pricing_rules`, `projects`, `estimations`, `estimation_tasks`, `task_breakdowns`, `task_flags`, `clarification_questions`, `milestones`, `quotations`, `quotation_items`, `change_requests`, `ai_configs`, `ai_eval_runs`.
+Tabel: `users`, `workspaces`, `workspace_members`, `pricing_profiles`, `pricing_rules`, `projects`, `estimations`, `estimation_tasks`, `task_breakdowns`, `task_flags`, `clarification_questions`, `milestones`, `quotations`, `quotation_items`, `change_requests`, `ai_configs` (termasuk API key terenkripsi), `analysis_jobs`, `ai_eval_runs`.
 
 Aturan integritas:
 - `quotations` immutable setelah dikirim; revisi = quotation versi baru.
@@ -286,7 +293,7 @@ Aturan integritas:
 | Integrasi | Teknologi | Kapan |
 |---|---|---|
 | Auth | Auth.js v5 — Google OAuth + email magic link | MVP |
-| AI | Vercel AI SDK (OpenAI / OpenAI-compatible / Ollama) | MVP |
+| AI | Vercel AI SDK (OpenAI / OpenAI-compatible / Ollama) — BYOK, konfigurasi dari Settings (DB) | MVP |
 | DB | PostgreSQL (managed — Neon/Supabase/RDS, `TBD` hosting) | MVP |
 | Storage | S3-compatible (logo, tanda tangan) | MVP |
 | PDF | `@react-pdf/renderer` | MVP |
@@ -297,8 +304,8 @@ Aturan integritas:
 
 - **Isolasi tenant**: semua query ber-scope `workspace_id`; diuji dengan test khusus lintas-tenant (akses ID project tenant lain → 404).
 - **Data sensitif**: requirement customer bisa memuat info bisnis rahasia. Penanganan: TLS in transit, encryption at rest (managed Postgres), retensi data mengikuti kebijakan user (fitur delete permanen project).
-- **AI provider**: user memilih provider. Dokumentasikan bahwa data requirement dikirim ke provider pilihan; OpenAI API tier tidak digunakan untuk training (kebijakan API). Opsi Ollama/local untuk data yang tidak boleh keluar.
-- **Auth**: session cookie httpOnly + CSRF protection bawaan Auth.js; rate limit endpoint AI (mis. 20 analisis/jam/workspace pada plan dasar).
+- **AI provider (BYOK)**: user memilih provider dan memakai API key miliknya sendiri. Dokumentasikan bahwa data requirement dikirim ke provider pilihan; OpenAI API tier tidak digunakan untuk training (kebijakan API). Opsi Ollama/local untuk data yang tidak boleh keluar. API key terenkripsi at-rest, write-only dari sisi UI, dan hanya didekripsi di server saat memanggil model. Mengganti `AUTH_SECRET` membuat key tersimpan tidak terbaca — user mengisi ulang di Settings. Base URL buatan user divalidasi untuk mencegah SSRF ke endpoint metadata cloud.
+- **Auth**: session cookie httpOnly + CSRF protection bawaan Auth.js; **tanpa rate limit/kuota analisis di sisi aplikasi** karena memakai API key milik user (BYOK) — batas pemakaian mengikuti akun provider user. Kegagalan karena limit provider ditampilkan apa adanya dan tahap yang gagal bisa diulang.
 - **RBAC**: MVP = 1 owner per workspace. Role member/viewer masuk Phase 3.
 - **Compliance**: PDP (UU PDP Indonesia) — consent pengumpulan data, right to delete. Audit log akses quotation.
 
@@ -323,7 +330,7 @@ Aturan integritas:
 **v2.0 (Phase 2–3)**
 - Change Request workflow, actual vs estimate, analytics (avg project value, win rate, estimate accuracy, complexity distribution).
 - Team/organization multi-member + RBAC.
-- Pricing recommendation dari historical data, AI provider management UI, local LLM onboarding.
+- Pricing recommendation dari historical data, manajemen multi-provider/fallback provider, local LLM onboarding. (Konfigurasi satu provider per workspace lewat Settings sudah masuk MVP.)
 - Multi-format input (PDF/DOCX/XLSX).
 - Billing SaaS berlangganan.
 

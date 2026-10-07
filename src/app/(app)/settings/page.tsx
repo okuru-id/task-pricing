@@ -1,4 +1,4 @@
-import { getAiSettings } from "@/lib/ai/provider";
+import { describeIncompleteConfig, getAiConfigView } from "@/lib/ai/provider";
 import { prisma } from "@/lib/prisma";
 import { requireScope } from "@/lib/workspace";
 
@@ -8,7 +8,7 @@ export default async function SettingsPage() {
   const { workspaceId } = await requireScope();
 
   const [ai, workspace] = await Promise.all([
-    getAiSettings(workspaceId),
+    getAiConfigView(workspaceId),
     prisma.workspace.findUniqueOrThrow({
       where: { id: workspaceId },
       select: { companyName: true, address: true, contact: true, bankInfo: true, terms: true },
@@ -20,11 +20,11 @@ export default async function SettingsPage() {
       <header className="space-y-1">
         <h1 className="text-[26px] leading-tight font-bold">Settings</h1>
         <p className="text-muted-foreground text-[13px]">
-          Provider AI untuk analisis requirement dan identitas yang tampil di PDF penawaran.
+          Provider AI (API key milik Anda sendiri) untuk analisis requirement dan identitas yang tampil di PDF penawaran.
         </p>
       </header>
 
-      <SettingsForms ai={ai} branding={workspace} />
+      <SettingsForms ai={ai} aiProblem={describeIncompleteConfig(ai)} branding={workspace} />
     </div>
   );
 }

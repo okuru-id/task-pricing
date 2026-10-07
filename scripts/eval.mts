@@ -3,7 +3,7 @@ import { existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { applyGuardrails, generateAnalysisWith } from "../src/lib/ai/analyze";
-import type { AiSettings } from "../src/lib/ai/provider";
+import { requireAiSettings } from "../src/lib/ai/provider";
 import {
   aggregate,
   checkGate,
@@ -20,12 +20,13 @@ const cases: GoldenCase[] = readdirSync(GOLDEN_DIR)
   .filter((file) => file.endsWith(".json"))
   .flatMap((file) => JSON.parse(readFileSync(join(GOLDEN_DIR, file), "utf8")) as GoldenCase[]);
 
-const settings: AiSettings = {
-  provider: "openai",
-  model: process.env.OPENAI_MODEL || "gpt-4o-mini",
-  temperature: 0.2,
-  systemPrompt: null,
-};
+// Konfigurasi AI diambil dari database (diisi di Settings), bukan dari environment variable.
+const workspaceArg = process.argv.find((arg) => arg.startsWith("--workspace="))?.split("=")[1];
+if (!workspaceArg) {
+  console.error("Wajib: --workspace=<id workspace> — konfigurasi AI (provider, model, API key) dibaca dari Settings workspace itu.");
+  process.exit(2);
+}
+const settings = await requireAiSettings(workspaceArg);
 
 const scores = [];
 for (const golden of cases) {

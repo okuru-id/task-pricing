@@ -21,22 +21,45 @@ vi.mock("next/navigation", () => ({
   },
 }));
 
-const aiOutput = {
-  tasks: [
-    { name: "Login Google", type: "new_feature", complexity: "medium", reason: "r", flags: [], breakdown: ["a"], questions: [], confidence: "high", custom_estimate_min: null, custom_estimate_max: null },
-    { name: "Perbaiki total keranjang", type: "bug", complexity: "simple", reason: "r", flags: [], breakdown: ["b"], questions: [], confidence: "high", custom_estimate_min: null, custom_estimate_max: null },
-    { name: "Laporan penjualan", type: "new_feature", complexity: "medium", reason: "r", flags: [], breakdown: ["c"], questions: [], confidence: "high", custom_estimate_min: null, custom_estimate_max: null },
-  ],
-  assumptions: ["Desain disediakan klien"],
-  milestones_suggestion: [
-    { name: "Fondasi", tasks: ["login google", "Fitur karangan"] },
-    { name: "Perbaikan", tasks: ["Perbaiki total keranjang"] },
-  ],
+const T = (name: string, type: string) => ({ name, type });
+const stageOutputs: Record<string, unknown> = {
+  submit_extract: {
+    tasks: [T("Login Google", "new_feature"), T("Perbaiki total keranjang", "bug"), T("Laporan penjualan", "new_feature")],
+    assumptions: ["Desain disediakan klien"],
+  },
+  submit_breakdown: {
+    items: [0, 1, 2].map((index) => ({ index, breakdown: [`langkah ${index}`], questions: [] })),
+  },
+  submit_complexity: {
+    items: [
+      { index: 0, complexity: "medium", reason: "r", confidence: "high", custom_estimate_min: null, custom_estimate_max: null },
+      { index: 1, complexity: "simple", reason: "r", confidence: "high", custom_estimate_min: null, custom_estimate_max: null },
+      { index: 2, complexity: "medium", reason: "r", confidence: "high", custom_estimate_min: null, custom_estimate_max: null },
+    ],
+  },
+  submit_dependencies: {
+    items: [0, 1, 2].map((index) => ({ index, flags: ["NO_FLAG"] })),
+    milestones_suggestion: [
+      { name: "Fondasi", tasks: ["login google", "Fitur karangan"] },
+      { name: "Perbaikan", tasks: ["Perbaiki total keranjang"] },
+    ],
+  },
 };
+
+/** Catatan panggilan model palsu: tahap mana saja yang benar-benar dipanggil, dan tahap yang dipaksa gagal. */
+const modelCalls: string[] = [];
+const failing = new Set<string>();
 
 vi.mock("ai", async (importOriginal) => ({
   ...(await importOriginal<typeof import("ai")>()),
-  generateText: async () => ({ toolCalls: [{ input: aiOutput }] }),
+  generateText: async (options: { toolChoice?: { toolName: string } }) => {
+    // Tanpa toolChoice = permintaan teks biasa (mis. Tes koneksi di Settings).
+    if (!options.toolChoice) return { text: "OK", toolCalls: [] };
+    const name = options.toolChoice.toolName;
+    modelCalls.push(name);
+    if (failing.has(name)) throw new Error("model error buatan");
+    return { toolCalls: [{ input: stageOutputs[name] }] };
+  },
 }));
 
 describe.skipIf(!DB_URL)("isolasi antar workspace", () => {
@@ -46,6 +69,7 @@ describe.skipIf(!DB_URL)("isolasi antar workspace", () => {
 
   beforeAll(async () => {
     process.env.DATABASE_URL = DB_URL;
+    process.env.AUTH_SECRET = "test-auth-secret"; // kunci enkripsi API key (bukan konfigurasi AI)
     ({ prisma } = await import("@/lib/prisma"));
 
     const wsA = await prisma.workspace.create({ data: { name: "tenant-a" } });
@@ -107,6 +131,13 @@ describe.skipIf(!DB_URL)("isolasi antar workspace", () => {
 
   const asA = () => (scope = { userId: "ua", workspaceId: a.ws });
   const asB = () => (scope = { userId: "ub", workspaceId: b.ws });
+
+  /** Konfigurasi AI workspace A lewat jalur yang sama dengan UI Settings (BYOK, tersimpan di DB). */
+  const ensureAiConfig = async () => {
+    asA();
+    const { saveAiSettings } = await import("@/app/(app)/settings/actions");
+    expect(await saveAiSettings({ provider: "openai", model: "model-uji", temperature: 0.2, apiKey: "sk-test-1234" })).toEqual({ ok: true });
+  };
 
   it("project-level: workspace lain mendapat 404 / null", async () => {
     asB();
@@ -210,13 +241,195 @@ describe.skipIf(!DB_URL)("isolasi antar workspace", () => {
     expect(await prisma.estimationTask.findUnique({ where: { id: a.vcTask } })).not.toBeNull();
   });
 
-  it("analisis menyimpan asumsi dan saran milestone (nama asing dibuang, sisanya belum dikelompokkan)", async () => {
-    process.env.OPENAI_API_KEY = "test-key";
-    const { runAnalysis } = await import("@/lib/ai/analyze");
+  it("loader quotation: pilih versi, daftar versi tanpa yang dihapus, workspace lain tidak melihat", async () => {
+    const { getLatestQuotation } = await import("@/lib/data/quotation");
     const estimation = await prisma.estimation.findFirstOrThrow({ where: { projectId: a.project } });
 
-    const first = await runAnalysis(estimation.id, a.ws);
-    expect(first.taskCount).toBe(3);
+    const v2 = await prisma.quotation.create({
+      data: { estimationId: estimation.id, version: 2, total: 5, assumptions: [], exclusions: [] },
+    });
+    const v3 = await prisma.quotation.create({
+      data: { estimationId: estimation.id, version: 3, total: 9, assumptions: [], exclusions: [] },
+    });
+
+    const latest = await getLatestQuotation(a.project, a.ws);
+    expect(latest?.quotation?.version).toBe(3);
+    expect(latest?.versions.map((q) => q.version)).toEqual([3, 2, 1]);
+
+    expect((await getLatestQuotation(a.project, a.ws, 2))?.quotation?.total).toBe(5);
+    expect((await getLatestQuotation(a.project, a.ws, 99))?.quotation).toBeNull();
+
+    await prisma.quotation.update({ where: { id: v3.id }, data: { deletedAt: new Date() } });
+    const afterDelete = await getLatestQuotation(a.project, a.ws);
+    expect(afterDelete?.quotation?.version).toBe(2);
+    expect(afterDelete?.versions.map((q) => q.version)).toEqual([2, 1]);
+    expect((await getLatestQuotation(a.project, a.ws, 3))?.quotation).toBeNull();
+
+    expect(await getLatestQuotation(a.project, b.ws, 2)).toBeNull();
+    await prisma.quotation.delete({ where: { id: v2.id } });
+  });
+
+  it("BYOK: tanpa konfigurasi di DB analisis ditolak walau ada env OPENAI_API_KEY (tidak ada fallback ke env)", async () => {
+    process.env.OPENAI_API_KEY = "sk-dari-env";
+    process.env.OPENAI_BASE_URL = "http://env.example/v1";
+    try {
+      const { createAnalysisJob, advanceJob } = await import("@/lib/ai/job");
+      const analyzeActions = await import("@/app/(app)/projects/[id]/analyze/actions");
+      const estimation = await prisma.estimation.findFirstOrThrow({ where: { projectId: a.project } });
+
+      modelCalls.length = 0;
+      asB(); // workspace B tidak pernah mengisi konfigurasi
+      const bProject = await prisma.project.create({
+        data: { workspaceId: b.ws, name: "Project B", estimations: { create: { requirement: "y".repeat(80) } } },
+        include: { estimations: true },
+      });
+      expect(await analyzeActions.beginAnalysis(bProject.id)).toMatchObject({ ok: false, code: "config" });
+
+      const jobId = await createAnalysisJob(bProject.estimations[0].id, b.ws);
+      const failed = await advanceJob(jobId, b.ws);
+      expect(failed).toMatchObject({ state: "failed", stage: 0 });
+      expect((failed as { error: string }).error).toContain("Settings");
+      expect(modelCalls).toEqual([]);
+      expect(estimation.id).toBeTruthy();
+    } finally {
+      delete process.env.OPENAI_API_KEY;
+      delete process.env.OPENAI_BASE_URL;
+    }
+  });
+
+  it("BYOK: API key tersimpan terenkripsi, tidak bocor ke tampilan, dan terisolasi per workspace", async () => {
+    const { saveAiSettings, testAiConnection } = await import("@/app/(app)/settings/actions");
+    const { getAiConfigView, requireAiSettings } = await import("@/lib/ai/provider");
+
+    asA();
+    // Validasi: key wajib untuk OpenAI, Base URL metadata cloud ditolak.
+    expect(await saveAiSettings({ provider: "openai", model: "m", temperature: 0.2 })).toMatchObject({ ok: false });
+    expect(
+      await saveAiSettings({ provider: "ollama", model: "m", temperature: 0.2, baseUrl: "http://169.254.169.254/" }),
+    ).toMatchObject({ ok: false });
+
+    expect(
+      await saveAiSettings({ provider: "openai", model: "gpt-x", temperature: 0.3, apiKey: "sk-rahasia-9876", baseUrl: "https://api.example.com/v1/" }),
+    ).toEqual({ ok: true });
+
+    const row = await prisma.aiConfig.findFirstOrThrow({ where: { workspaceId: a.ws } });
+    expect(row.apiKeyEnc).toBeTruthy();
+    expect(row.apiKeyEnc).not.toContain("sk-rahasia");
+    expect(row.apiKeyHint).toBe("9876");
+    expect(row.baseUrl).toBe("https://api.example.com/v1");
+
+    const view = await getAiConfigView(a.ws);
+    expect(view).toMatchObject({ hasKey: true, keyHint: "9876", model: "gpt-x" });
+    expect(JSON.stringify(view)).not.toContain("sk-rahasia");
+    expect((await requireAiSettings(a.ws)).apiKey).toBe("sk-rahasia-9876");
+
+    // Key kosong = pertahankan; hanya satu baris per workspace.
+    expect(await saveAiSettings({ provider: "openai", model: "gpt-y", temperature: 0.3, apiKey: "" })).toEqual({ ok: true });
+    expect((await requireAiSettings(a.ws)).apiKey).toBe("sk-rahasia-9876");
+    expect(await prisma.aiConfig.count({ where: { workspaceId: a.ws } })).toBe(1);
+
+    // Workspace B tidak melihat konfigurasi A.
+    expect(await getAiConfigView(b.ws)).toBeNull();
+    asB();
+    expect(await testAiConnection()).toMatchObject({ ok: false });
+
+    // Uji koneksi workspace A memakai model palsu.
+    asA();
+    modelCalls.length = 0;
+    expect(await testAiConnection()).toEqual({ ok: true });
+
+    // Hapus key → konfigurasi tidak lengkap lagi.
+    expect(await saveAiSettings({ provider: "ollama", model: "llama", temperature: 0.2, clearKey: true })).toEqual({ ok: true });
+    expect(await getAiConfigView(a.ws)).toMatchObject({ provider: "ollama", baseUrl: "http://localhost:11434/v1", hasKey: false });
+    expect((await requireAiSettings(a.ws)).apiKey).toBeNull();
+  });
+
+  it("un-archive: pulih ke status sebelumnya, dijaga per workspace, dan turun jika isinya berubah", async () => {
+    const lifecycle = await import("@/app/(app)/projects/[id]/lifecycle-actions");
+    const project = await prisma.project.create({
+      data: {
+        workspaceId: a.ws,
+        name: "Project arsip",
+        status: "ACCEPTED",
+        estimations: {
+          create: {
+            requirement: "z".repeat(60),
+            tasks: { create: { name: "T", type: "BUG", complexity: "SIMPLE", price: 1 } },
+          },
+        },
+      },
+      include: { estimations: true },
+    });
+    const quotation = await prisma.quotation.create({
+      data: { estimationId: project.estimations[0].id, total: 1, assumptions: [], exclusions: [] },
+    });
+    const statusOf = async () => (await prisma.project.findUniqueOrThrow({ where: { id: project.id } })).status;
+
+    // Memulihkan project yang tidak diarsipkan ditolak.
+    asA();
+    expect(await lifecycle.restoreProject(project.id)).toMatchObject({ ok: false });
+
+    expect(await lifecycle.setProjectStatus(project.id, "ARCHIVED")).toEqual({ ok: true });
+    expect((await prisma.project.findUniqueOrThrow({ where: { id: project.id } })).archivedFrom).toBe("ACCEPTED");
+
+    // Workspace lain tidak bisa memulihkan.
+    asB();
+    expect(await lifecycle.restoreProject(project.id)).toMatchObject({ ok: false });
+    expect(await statusOf()).toBe("ARCHIVED");
+
+    asA();
+    expect(await lifecycle.restoreProject(project.id)).toEqual({ ok: true });
+    const restored = await prisma.project.findUniqueOrThrow({ where: { id: project.id } });
+    expect(restored).toMatchObject({ status: "ACCEPTED", archivedFrom: null });
+
+    // Quotation dihapus selama diarsipkan → tidak boleh kembali ke Accepted.
+    expect(await lifecycle.setProjectStatus(project.id, "ARCHIVED")).toEqual({ ok: true });
+    await prisma.quotation.update({ where: { id: quotation.id }, data: { deletedAt: new Date() } });
+    expect(await lifecycle.restoreProject(project.id)).toEqual({ ok: true });
+    expect(await statusOf()).toBe("ANALYZED");
+
+    // Project lama yang diarsipkan sebelum kolom archivedFrom ada (null) → ditebak dari isinya.
+    await prisma.project.update({ where: { id: project.id }, data: { status: "ARCHIVED", archivedFrom: null } });
+    expect(await lifecycle.restoreProject(project.id)).toEqual({ ok: true });
+    expect(await statusOf()).toBe("ANALYZED");
+  });
+
+  it("analisis per tahap: simpan asumsi + milestone, tahap gagal diulang sendirian, analisis ulang mengganti hasil", async () => {
+    await ensureAiConfig();
+    const { createAnalysisJob, advanceJob, getResumableJob } = await import("@/lib/ai/job");
+    const estimation = await prisma.estimation.findFirstOrThrow({ where: { projectId: a.project } });
+
+    // Workspace lain tidak bisa membuat maupun menjalankan job milik A.
+    await expect(createAnalysisJob(estimation.id, b.ws)).rejects.toThrow();
+    const tasksBefore = (await prisma.estimationTask.findMany({ where: { estimationId: estimation.id }, orderBy: { id: "asc" } })).map((t) => t.id);
+    const jobId = await createAnalysisJob(estimation.id, a.ws);
+    expect(await advanceJob(jobId, b.ws)).toMatchObject({ state: "failed" });
+    expect(modelCalls).toEqual([]);
+
+    // Tahap 1 dan 2 berhasil; tahap 3 (kompleksitas) gagal.
+    failing.add("submit_complexity");
+    expect(await advanceJob(jobId, a.ws)).toEqual({ state: "progress", completed: 1 });
+    expect(await advanceJob(jobId, a.ws)).toEqual({ state: "progress", completed: 2 });
+    const failed = await advanceJob(jobId, a.ws);
+    expect(failed).toMatchObject({ state: "failed", stage: 2 });
+    expect((failed as { error: string }).error).toContain("Menilai kompleksitas");
+
+    // Job gagal bisa dilanjutkan dan tidak ada harga/task yang tersimpan.
+    expect(await getResumableJob(estimation.id, a.ws)).toMatchObject({ stage: 2, status: "FAILED" });
+    expect(await getResumableJob(estimation.id, b.ws)).toBeNull();
+    // Tahap yang gagal tidak menyentuh hasil sebelumnya: task lama utuh, belum ada yang diganti.
+    const tasksDuring = (await prisma.estimationTask.findMany({ where: { estimationId: estimation.id }, orderBy: { id: "asc" } })).map((t) => t.id);
+    expect(tasksDuring).toEqual(tasksBefore);
+
+    // Ulang: HANYA tahap kompleksitas yang dipanggil lagi (extract & breakdown tidak).
+    modelCalls.length = 0;
+    failing.clear();
+    expect(await advanceJob(jobId, a.ws)).toEqual({ state: "progress", completed: 3 });
+    expect(modelCalls).toEqual(["submit_complexity"]);
+
+    expect(await advanceJob(jobId, a.ws)).toEqual({ state: "progress", completed: 4 });
+    const done = await advanceJob(jobId, a.ws);
+    expect(done).toEqual({ state: "done", taskCount: 3 });
 
     const saved = await prisma.estimation.findUniqueOrThrow({ where: { id: estimation.id } });
     expect(saved.assumptions).toEqual(["Desain disediakan klien"]);
@@ -232,18 +445,32 @@ describe.skipIf(!DB_URL)("isolasi antar workspace", () => {
     ]);
     expect(await prisma.estimationTask.count({ where: { estimationId: estimation.id, milestoneId: null } })).toBe(1);
 
-    // Analisis ulang mengganti milestone lama, bukan menumpuk.
-    await runAnalysis(estimation.id, a.ws);
+    // Job selesai bersifat idempoten dan tidak lagi ditawarkan untuk dilanjutkan.
+    modelCalls.length = 0;
+    expect(await advanceJob(jobId, a.ws)).toEqual({ state: "done", taskCount: 3 });
+    expect(modelCalls).toEqual([]);
+    expect(await getResumableJob(estimation.id, a.ws)).toBeNull();
+
+    // Analisis ulang (job baru) mengganti milestone lama, bukan menumpuk.
+    const second = await createAnalysisJob(estimation.id, a.ws);
+    for (let i = 0; i < 5; i++) await advanceJob(second, a.ws);
     expect(await prisma.milestone.count({ where: { estimationId: estimation.id } })).toBe(2);
+    expect(await prisma.estimationTask.count({ where: { estimationId: estimation.id } })).toBe(3);
   });
 
-  it("analisis AI memakai kuota per workspace", async () => {
-    const { consumeAnalysisQuota, ANALYSIS_LIMIT } = await import("@/lib/rate-limit");
-    for (let i = 0; i < ANALYSIS_LIMIT; i++) {
-      expect(await consumeAnalysisQuota(a.ws)).toEqual({ allowed: true });
-    }
-    expect(await consumeAnalysisQuota(a.ws)).toMatchObject({ allowed: false });
-    // Workspace lain tidak ikut terkunci.
-    expect(await consumeAnalysisQuota(b.ws)).toEqual({ allowed: true });
+  it("lease: permintaan kedua pada job yang sedang berjalan mendapat 'busy'", async () => {
+    await ensureAiConfig();
+    const { createAnalysisJob, advanceJob } = await import("@/lib/ai/job");
+    const estimation = await prisma.estimation.findFirstOrThrow({ where: { projectId: a.project } });
+    const jobId = await createAnalysisJob(estimation.id, a.ws);
+
+    await prisma.analysisJob.update({ where: { id: jobId }, data: { lockedUntil: new Date(Date.now() + 60_000) } });
+    modelCalls.length = 0;
+    expect(await advanceJob(jobId, a.ws)).toEqual({ state: "busy" });
+    expect(modelCalls).toEqual([]);
+
+    // Lease kedaluwarsa (mis. server mati di tengah tahap) → bisa diambil alih.
+    await prisma.analysisJob.update({ where: { id: jobId }, data: { lockedUntil: new Date(Date.now() - 1000) } });
+    expect(await advanceJob(jobId, a.ws)).toEqual({ state: "progress", completed: 1 });
   });
 });

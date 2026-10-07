@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import type { ProjectStatus } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
-import { canTransition } from "@/lib/project-status";
+import { canTransition, restoreTarget } from "@/lib/project-status";
 import { requireScope } from "@/lib/workspace";
 
 export type ActionResult = { ok: true } | { ok: false; error: string };
@@ -37,7 +37,37 @@ export async function setProjectStatus(projectId: string, to: ProjectStatus): Pr
   // Cek ulang status di WHERE agar dua klik bersamaan tidak melompati alur.
   const updated = await prisma.project.updateMany({
     where: { id: projectId, workspaceId, status: project.status },
-    data: { status: to },
+    // Simpan status asal saat diarsipkan agar bisa dipulihkan persis (un-archive).
+    data: { status: to, archivedFrom: to === "ARCHIVED" ? project.status : null },
+  });
+  if (updated.count === 0) return { ok: false, error: "Status sudah berubah, muat ulang halaman" };
+
+  revalidatePath(`/projects/${projectId}`, "layout");
+  revalidatePath("/dashboard");
+  revalidatePath("/history");
+  return { ok: true };
+}
+
+/** Pulihkan project dari arsip ke status sebelumnya (disesuaikan jika isinya sudah berubah). */
+export async function restoreProject(projectId: string): Promise<ActionResult> {
+  const { workspaceId } = await requireScope();
+
+  const project = await prisma.project.findFirst({
+    where: { id: projectId, workspaceId, deletedAt: null },
+    select: { status: true, archivedFrom: true },
+  });
+  if (!project) return { ok: false, error: "Project tidak ditemukan" };
+  if (project.status !== "ARCHIVED") return { ok: false, error: "Project ini tidak sedang diarsipkan" };
+
+  const [quotations, tasks] = await Promise.all([
+    prisma.quotation.count({ where: { deletedAt: null, estimation: { projectId } } }),
+    prisma.estimationTask.count({ where: { estimation: { projectId } } }),
+  ]);
+  const target = restoreTarget(project.archivedFrom, { quotation: quotations > 0, tasks: tasks > 0 });
+
+  const updated = await prisma.project.updateMany({
+    where: { id: projectId, workspaceId, status: "ARCHIVED" },
+    data: { status: target, archivedFrom: null },
   });
   if (updated.count === 0) return { ok: false, error: "Status sudah berubah, muat ulang halaman" };
 

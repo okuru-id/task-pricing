@@ -25,3 +25,23 @@ export function nextStatuses(from: ProjectStatus): ProjectStatus[] {
 export function canTransition(from: ProjectStatus, to: ProjectStatus): boolean {
   return TRANSITIONS[from].includes(to);
 }
+
+/** Status yang hanya masuk akal jika project punya quotation aktif. */
+const NEEDS_QUOTATION: ProjectStatus[] = ["QUOTED", "ACCEPTED", "REJECTED", "COMPLETED"];
+
+/**
+ * Status tujuan saat project dipulihkan dari arsip: kembali ke status sebelum diarsipkan (`archivedFrom`).
+ * Jika datanya sudah berubah sejak itu (quotation dihapus, task hilang) atau `archivedFrom` tidak diketahui
+ * (diarsipkan sebelum kolomnya ada), turunkan ke status terdekat yang konsisten dengan isi project.
+ */
+export function restoreTarget(
+  archivedFrom: ProjectStatus | null,
+  has: { quotation: boolean; tasks: boolean },
+): ProjectStatus {
+  let target: ProjectStatus = archivedFrom && archivedFrom !== "ARCHIVED" ? archivedFrom : has.quotation ? "QUOTED" : "ANALYZED";
+
+  if (NEEDS_QUOTATION.includes(target) && !has.quotation) target = "ANALYZED";
+  if (target === "ANALYZED" && !has.tasks) target = "DRAFT";
+
+  return target;
+}

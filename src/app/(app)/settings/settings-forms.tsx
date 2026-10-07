@@ -10,9 +10,10 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 
-import { saveAiSettings, saveBranding, type ActionResult } from "./actions";
+import { AI_PROVIDERS, OLLAMA_DEFAULT_BASE_URL, type AiProvider } from "@/lib/ai/config";
+import type { AiConfigView } from "@/lib/ai/provider";
 
-const PROVIDERS = { openai: "OpenAI / OpenAI-compatible", ollama: "Ollama (lokal)" };
+import { saveAiSettings, saveBranding, testAiConnection, type ActionResult } from "./actions";
 
 function useSave() {
   const router = useRouter();
@@ -55,9 +56,11 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 
 export function SettingsForms({
   ai,
+  aiProblem,
   branding,
 }: {
-  ai: { provider: string; model: string; temperature: number; systemPrompt: string | null };
+  ai: AiConfigView | null;
+  aiProblem: string | null;
   branding: {
     companyName: string | null;
     address: string | null;
@@ -68,10 +71,15 @@ export function SettingsForms({
 }) {
   const { pending, run } = useSave();
 
-  const [provider, setProvider] = useState(ai.provider === "ollama" ? "ollama" : "openai");
-  const [model, setModel] = useState(ai.model);
-  const [temperature, setTemperature] = useState(String(ai.temperature));
-  const [systemPrompt, setSystemPrompt] = useState(ai.systemPrompt ?? "");
+  const [provider, setProvider] = useState<AiProvider>(ai?.provider ?? "openai");
+  const [model, setModel] = useState(ai?.model ?? "");
+  const [temperature, setTemperature] = useState(String(ai?.temperature ?? 0.2));
+  const [systemPrompt, setSystemPrompt] = useState(ai?.systemPrompt ?? "");
+  const [baseUrl, setBaseUrl] = useState(ai?.baseUrl ?? "");
+  const [apiKey, setApiKey] = useState("");
+  const [clearKey, setClearKey] = useState(false);
+
+  const isOllama = provider === "ollama";
 
   const [brand, setBrand] = useState({
     companyName: branding.companyName ?? "",
@@ -81,19 +89,41 @@ export function SettingsForms({
     terms: branding.terms ?? "",
   });
 
+  const test = async () => {
+    const id = toast.loading("Menguji koneksi ke model…");
+    const result = await testAiConnection().catch(() => ({ ok: false as const, error: "Pengujian gagal" }));
+    if (result.ok) toast.success("Koneksi berhasil", { id });
+    else toast.error(result.error, { id });
+  };
+
   return (
     <>
       <Section
         title="Provider AI"
-        hint="API key tetap dibaca dari environment server (OPENAI_API_KEY), tidak disimpan di sini."
+        hint="API key milik Anda sendiri (BYOK). Disimpan terenkripsi di database dan tidak pernah ditampilkan kembali; biaya pemakaian ditagih langsung oleh provider Anda."
       >
+        {aiProblem && (
+          <p className="bg-warning-soft text-warning-strong rounded-md px-3 py-2 text-xs font-medium">
+            {aiProblem} Analisis AI belum bisa dijalankan sampai ini dilengkapi.
+          </p>
+        )}
+
         <Field label="Provider">
-          <Select items={PROVIDERS} value={provider} onValueChange={(v) => v && setProvider(v)}>
+          <Select
+            items={AI_PROVIDERS}
+            value={provider}
+            onValueChange={(v) => {
+              if (!v) return;
+              setProvider(v as AiProvider);
+              // Ollama butuh Base URL lokal; isi contohnya agar tidak ada tebakan tersembunyi di server.
+              if (v === "ollama" && !baseUrl) setBaseUrl(OLLAMA_DEFAULT_BASE_URL);
+            }}
+          >
             <SelectTrigger className="bg-card h-9 w-full text-[13px]">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {Object.entries(PROVIDERS).map(([value, label]) => (
+              {Object.entries(AI_PROVIDERS).map(([value, label]) => (
                 <SelectItem key={value} value={value}>
                   {label}
                 </SelectItem>
@@ -101,9 +131,56 @@ export function SettingsForms({
             </SelectContent>
           </Select>
         </Field>
+
+        <Field label={isOllama ? "Base URL Ollama" : "Base URL (kosongkan untuk OpenAI resmi)"}>
+          <Input
+            value={baseUrl}
+            placeholder={isOllama ? OLLAMA_DEFAULT_BASE_URL : "https://api.openai.com/v1"}
+            onChange={(e) => setBaseUrl(e.target.value)}
+            className="h-9 text-[13px]"
+          />
+        </Field>
+
+        {!isOllama && (
+          <Field label="API key">
+            <div className="flex gap-2">
+              <Input
+                type="password"
+                autoComplete="off"
+                value={apiKey}
+                disabled={clearKey}
+                placeholder={
+                  ai?.hasKey && !clearKey ? `Tersimpan (…${ai.keyHint ?? "****"}) — kosongkan untuk mempertahankan` : "sk-…"
+                }
+                onChange={(e) => setApiKey(e.target.value)}
+                className="h-9 flex-1 text-[13px]"
+              />
+              {ai?.hasKey && (
+                <Button
+                  type="button"
+                  variant={clearKey ? "default" : "outline"}
+                  size="sm"
+                  className="h-9"
+                  onClick={() => {
+                    setClearKey(!clearKey);
+                    setApiKey("");
+                  }}
+                >
+                  {clearKey ? "Batal hapus" : "Hapus key"}
+                </Button>
+              )}
+            </div>
+          </Field>
+        )}
+
         <div className="grid gap-4 sm:grid-cols-[1fr_140px]">
           <Field label="Model">
-            <Input value={model} onChange={(e) => setModel(e.target.value)} className="h-9 text-[13px]" />
+            <Input
+              value={model}
+              placeholder="mis. gpt-4o-mini atau llama3.1"
+              onChange={(e) => setModel(e.target.value)}
+              className="h-9 text-[13px]"
+            />
           </Field>
           <Field label="Temperature (0–2)">
             <Input
@@ -124,18 +201,35 @@ export function SettingsForms({
             className="min-h-24 text-[13px]"
           />
         </Field>
-        <Button
-          size="sm"
-          disabled={pending}
-          onClick={() =>
-            run(
-              () => saveAiSettings({ provider: provider as "openai" | "ollama", model, temperature: Number(temperature), systemPrompt }),
-              "Pengaturan AI disimpan",
-            )
-          }
-        >
-          Simpan pengaturan AI
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            size="sm"
+            disabled={pending}
+            onClick={() =>
+              run(
+                () =>
+                  saveAiSettings({
+                    provider,
+                    model,
+                    temperature: Number(temperature),
+                    systemPrompt,
+                    baseUrl,
+                    apiKey: isOllama ? "" : apiKey,
+                    clearKey: !isOllama && clearKey,
+                  }),
+                "Pengaturan AI disimpan",
+              )
+            }
+          >
+            Simpan pengaturan AI
+          </Button>
+          <Button size="sm" variant="outline" disabled={pending || !ai || Boolean(aiProblem)} onClick={() => void test()}>
+            Tes koneksi
+          </Button>
+        </div>
+        <p className="text-muted-foreground text-xs">
+          Data requirement dikirim ke provider yang Anda pilih. Untuk data yang tidak boleh keluar, pakai Ollama lokal.
+        </p>
       </Section>
 
       <Section title="Identitas perusahaan" hint="Tampil di header, pembayaran, dan syarat pada PDF penawaran.">
