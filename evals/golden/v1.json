@@ -2,499 +2,1025 @@
   {
     "id": "seed-login-google",
     "requirement": "Pelanggan ingin pengguna bisa masuk ke aplikasi memakai akun Google, selain email dan password yang sudah ada. Setelah login pertama, akun baru dibuat otomatis.",
-    "labelledBy": [],
-    "draft": true,
+    "labelledBy": [
+      "kurob",
+      "bagas"
+    ],
     "expectedTasks": [
-      { "keywords": ["google"], "complexity": "medium", "flags": ["THIRD_PARTY_DEPENDENCY"] }
+      {
+        "keywords": [
+          "google"
+        ],
+        "complexity": "medium",
+        "flags": [
+          "THIRD_PARTY_DEPENDENCY"
+        ]
+      }
     ]
   },
   {
     "id": "seed-midtrans",
     "requirement": "Tambahkan pembayaran online lewat Midtrans pada halaman checkout. Setelah pembayaran sukses, status pesanan berubah menjadi Dibayar dan pelanggan menerima email konfirmasi.",
-    "labelledBy": [],
-    "draft": true,
+    "labelledBy": [
+      "kurob",
+      "bagas"
+    ],
     "expectedTasks": [
-      { "keywords": ["midtrans"], "complexity": "complex", "flags": ["THIRD_PARTY_DEPENDENCY"] },
-      { "keywords": ["email"], "complexity": "simple", "flags": [] }
+      {
+        "keywords": [
+          "midtrans"
+        ],
+        "complexity": "complex",
+        "flags": [
+          "THIRD_PARTY_DEPENDENCY"
+        ]
+      },
+      {
+        "keywords": [
+          "email"
+        ],
+        "complexity": "simple",
+        "flags": []
+      }
     ]
   },
   {
     "id": "seed-bug-total",
     "requirement": "Total keranjang belanja salah ketika ada kupon diskon persentase dan ongkos kirim sekaligus. Mohon diperbaiki.",
-    "labelledBy": [],
-    "draft": true,
+    "labelledBy": [
+      "kurob",
+      "bagas"
+    ],
     "expectedTasks": [
-      { "keywords": ["kupon"], "complexity": "simple", "flags": [] }
+      {
+        "keywords": [
+          "kupon"
+        ],
+        "complexity": "simple",
+        "flags": []
+      }
     ]
   },
   {
     "id": "bug-tanggal-laporan",
     "requirement": "Di halaman laporan penjualan, filter tanggal tidak jalan. Kalau saya pilih 1 sampai 31 Januari, datanya tetap menampilkan semua bulan. Tolong dibetulkan.",
-    "labelledBy": [],
-    "draft": true,
+    "labelledBy": [
+      "kurob",
+      "bagas"
+    ],
     "expectedTasks": [
-      { "keywords": ["filter"], "complexity": "simple", "flags": [] }
+      {
+        "keywords": [
+          "filter"
+        ],
+        "complexity": "simple",
+        "flags": []
+      }
     ]
   },
   {
     "id": "bug-upload-foto",
     "requirement": "Kalau admin upload foto produk yang ukurannya besar, halamannya error 500. Foto kecil tidak masalah.",
-    "labelledBy": [],
-    "draft": true,
+    "labelledBy": [
+      "kurob",
+      "bagas"
+    ],
     "expectedTasks": [
-      { "keywords": ["upload"], "complexity": "simple", "flags": [] }
+      {
+        "keywords": [
+          "upload"
+        ],
+        "complexity": "simple",
+        "flags": []
+      }
     ]
   },
   {
     "id": "bug-stok-minus",
     "requirement": "Stok barang bisa jadi minus kalau dua orang checkout barang terakhir di waktu yang sama. Harusnya yang kedua ditolak.",
-    "labelledBy": [],
-    "draft": true,
+    "labelledBy": [
+      "kurob",
+      "bagas"
+    ],
     "expectedTasks": [
-      { "keywords": ["stok"], "complexity": "medium", "flags": ["DATABASE_REVIEW"] }
+      {
+        "keywords": [
+          "stok"
+        ],
+        "complexity": "medium",
+        "flags": [
+          "DATABASE_REVIEW"
+        ]
+      }
     ]
   },
   {
     "id": "bug-email-masuk-spam",
     "requirement": "Email konfirmasi pendaftaran sering masuk folder spam pelanggan. Tolong dicarikan solusinya.",
-    "labelledBy": [],
-    "draft": true,
+    "labelledBy": [
+      "kurob",
+      "bagas"
+    ],
     "expectedTasks": [
-      { "keywords": ["email"], "complexity": "medium", "flags": ["CLARIFICATION_REQUIRED"] }
+      {
+        "keywords": [
+          "email"
+        ],
+        "complexity": "medium",
+        "flags": [
+          "CLARIFICATION_REQUIRED"
+        ]
+      }
     ]
   },
   {
     "id": "crud-produk",
     "requirement": "Saya mau admin bisa menambah, mengubah, dan menghapus produk sendiri lewat dashboard. Isinya nama, harga, deskripsi, dan satu foto.",
-    "labelledBy": [],
-    "draft": true,
+    "labelledBy": [
+      "kurob",
+      "bagas"
+    ],
     "expectedTasks": [
-      { "keywords": ["produk"], "complexity": "medium", "flags": [] }
+      {
+        "keywords": [
+          "produk"
+        ],
+        "complexity": "medium",
+        "flags": []
+      }
     ]
   },
   {
     "id": "crud-kategori",
     "requirement": "Tambahkan pengelolaan kategori produk. Satu produk bisa masuk beberapa kategori, dan kategori bisa punya sub-kategori.",
-    "labelledBy": [],
-    "draft": true,
+    "labelledBy": [
+      "kurob",
+      "bagas"
+    ],
     "expectedTasks": [
-      { "keywords": ["kategori"], "complexity": "medium", "flags": ["DATABASE_REVIEW"] }
+      {
+        "keywords": [
+          "kategori"
+        ],
+        "complexity": "medium",
+        "flags": [
+          "DATABASE_REVIEW"
+        ]
+      }
     ]
   },
   {
     "id": "halaman-statis",
     "requirement": "Tolong dibuatkan halaman Tentang Kami dan Kontak. Isinya teks dan satu peta lokasi toko saja.",
-    "labelledBy": [],
-    "draft": true,
+    "labelledBy": [
+      "kurob",
+      "bagas"
+    ],
     "expectedTasks": [
-      { "keywords": ["tentang"], "complexity": "simple", "flags": [] },
-      { "keywords": ["kontak"], "complexity": "simple", "flags": [] }
+      {
+        "keywords": [
+          "tentang"
+        ],
+        "complexity": "simple",
+        "flags": []
+      },
+      {
+        "keywords": [
+          "kontak"
+        ],
+        "complexity": "simple",
+        "flags": []
+      }
     ]
   },
   {
     "id": "landing-company-profile",
     "requirement": "Saya butuh company profile sederhana: beranda, layanan, portofolio, dan form kontak yang masuk ke email saya.",
-    "labelledBy": [],
-    "draft": true,
+    "labelledBy": [
+      "kurob",
+      "bagas"
+    ],
     "expectedTasks": [
-      { "keywords": ["beranda"], "complexity": "simple", "flags": [] },
-      { "keywords": ["portofolio"], "complexity": "simple", "flags": [] },
-      { "keywords": ["kontak"], "complexity": "simple", "flags": [] }
+      {
+        "keywords": [
+          "beranda"
+        ],
+        "complexity": "simple",
+        "flags": []
+      },
+      {
+        "keywords": [
+          "portofolio"
+        ],
+        "complexity": "simple",
+        "flags": []
+      },
+      {
+        "keywords": [
+          "kontak"
+        ],
+        "complexity": "simple",
+        "flags": []
+      }
     ]
   },
   {
     "id": "pencarian-produk",
     "requirement": "Pelanggan susah cari barang. Tolong tambahkan kolom pencarian dengan filter harga dan kategori, plus urutan termurah atau terbaru.",
-    "labelledBy": [],
-    "draft": true,
+    "labelledBy": [
+      "kurob",
+      "bagas"
+    ],
     "expectedTasks": [
-      { "keywords": ["pencarian"], "complexity": "medium", "flags": ["DATABASE_REVIEW"] }
+      {
+        "keywords": [
+          "pencarian"
+        ],
+        "complexity": "medium",
+        "flags": [
+          "DATABASE_REVIEW"
+        ]
+      }
     ]
   },
   {
     "id": "auth-role-admin",
     "requirement": "Sekarang semua admin bisa akses semua menu. Saya mau ada level: owner bisa semua, staf hanya kelola pesanan, kasir hanya lihat laporan.",
-    "labelledBy": [],
-    "draft": true,
+    "labelledBy": [
+      "kurob",
+      "bagas"
+    ],
     "expectedTasks": [
-      { "keywords": ["role"], "complexity": "complex", "flags": ["ARCHITECTURE_REVIEW"] }
+      {
+        "keywords": [
+          "role"
+        ],
+        "complexity": "complex",
+        "flags": [
+          "ARCHITECTURE_REVIEW"
+        ]
+      }
     ]
   },
   {
     "id": "auth-reset-password",
     "requirement": "Tambahkan fitur lupa password. Pengguna isi email, dapat link reset yang berlaku 1 jam.",
-    "labelledBy": [],
-    "draft": true,
+    "labelledBy": [
+      "kurob",
+      "bagas"
+    ],
     "expectedTasks": [
-      { "keywords": ["reset"], "complexity": "medium", "flags": [] }
+      {
+        "keywords": [
+          "reset"
+        ],
+        "complexity": "medium",
+        "flags": []
+      }
     ]
   },
   {
     "id": "auth-otp-wa",
     "requirement": "Saya mau verifikasi nomor HP pakai OTP yang dikirim lewat WhatsApp waktu pengguna daftar.",
-    "labelledBy": [],
-    "draft": true,
+    "labelledBy": [
+      "kurob",
+      "bagas"
+    ],
     "expectedTasks": [
-      { "keywords": ["otp"], "complexity": "complex", "flags": ["THIRD_PARTY_DEPENDENCY"] }
+      {
+        "keywords": [
+          "otp"
+        ],
+        "complexity": "complex",
+        "flags": [
+          "THIRD_PARTY_DEPENDENCY"
+        ]
+      }
     ]
   },
   {
     "id": "auth-sso-perusahaan",
     "requirement": "Klien korporat kami minta karyawannya bisa masuk pakai akun Microsoft perusahaan mereka, tidak usah bikin password baru.",
-    "labelledBy": [],
-    "draft": true,
+    "labelledBy": [
+      "kurob",
+      "bagas"
+    ],
     "expectedTasks": [
-      { "keywords": ["sso"], "complexity": "complex", "flags": ["THIRD_PARTY_DEPENDENCY"] }
+      {
+        "keywords": [
+          "sso"
+        ],
+        "complexity": "complex",
+        "flags": [
+          "THIRD_PARTY_DEPENDENCY"
+        ]
+      }
     ]
   },
   {
     "id": "bayar-xendit",
     "requirement": "Tolong hubungkan pembayaran ke Xendit supaya pelanggan bisa bayar pakai virtual account dan e-wallet. Status pesanan update otomatis setelah bayar.",
-    "labelledBy": [],
-    "draft": true,
+    "labelledBy": [
+      "kurob",
+      "bagas"
+    ],
     "expectedTasks": [
-      { "keywords": ["xendit"], "complexity": "complex", "flags": ["THIRD_PARTY_DEPENDENCY"] }
+      {
+        "keywords": [
+          "xendit"
+        ],
+        "complexity": "complex",
+        "flags": [
+          "THIRD_PARTY_DEPENDENCY"
+        ]
+      }
     ]
   },
   {
     "id": "bayar-qris",
     "requirement": "Saya mau terima pembayaran QRIS. Belum tahu pakai penyedia yang mana, tolong disarankan sekalian biayanya berapa.",
-    "labelledBy": [],
-    "draft": true,
+    "labelledBy": [
+      "kurob",
+      "bagas"
+    ],
     "expectedTasks": [
       {
-        "keywords": ["qris"],
+        "keywords": [
+          "qris"
+        ],
         "complexity": "very_complex",
-        "flags": ["THIRD_PARTY_DEPENDENCY", "COMPLEX_REVIEW", "CLARIFICATION_REQUIRED"]
+        "flags": [
+          "THIRD_PARTY_DEPENDENCY",
+          "COMPLEX_REVIEW",
+          "CLARIFICATION_REQUIRED"
+        ]
       }
     ]
   },
   {
     "id": "bayar-cicilan",
     "requirement": "Pelanggan minta bisa bayar cicilan 3 atau 6 bulan lewat kartu kredit, dan ada simulasi cicilan di halaman produk.",
-    "labelledBy": [],
-    "draft": true,
+    "labelledBy": [
+      "kurob",
+      "bagas"
+    ],
     "expectedTasks": [
-      { "keywords": ["cicilan"], "complexity": "very_complex", "flags": ["THIRD_PARTY_DEPENDENCY", "COMPLEX_REVIEW"] }
+      {
+        "keywords": [
+          "cicilan"
+        ],
+        "complexity": "very_complex",
+        "flags": [
+          "THIRD_PARTY_DEPENDENCY",
+          "COMPLEX_REVIEW"
+        ]
+      }
     ]
   },
   {
     "id": "bayar-refund",
     "requirement": "Kalau pesanan dibatalkan, dananya harus balik otomatis ke pelanggan lewat payment gateway yang sama.",
-    "labelledBy": [],
-    "draft": true,
+    "labelledBy": [
+      "kurob",
+      "bagas"
+    ],
     "expectedTasks": [
-      { "keywords": ["refund"], "complexity": "complex", "flags": ["THIRD_PARTY_DEPENDENCY"] }
+      {
+        "keywords": [
+          "refund"
+        ],
+        "complexity": "complex",
+        "flags": [
+          "THIRD_PARTY_DEPENDENCY"
+        ]
+      }
     ]
   },
   {
     "id": "notif-wa-pesanan",
     "requirement": "Setiap ada pesanan masuk, saya mau dapat notifikasi WhatsApp. Pelanggan juga dikirimi nomor resi lewat WhatsApp kalau barang sudah dikirim.",
-    "labelledBy": [],
-    "draft": true,
+    "labelledBy": [
+      "kurob",
+      "bagas"
+    ],
     "expectedTasks": [
-      { "keywords": ["whatsapp"], "complexity": "complex", "flags": ["THIRD_PARTY_DEPENDENCY"] }
+      {
+        "keywords": [
+          "whatsapp"
+        ],
+        "complexity": "complex",
+        "flags": [
+          "THIRD_PARTY_DEPENDENCY"
+        ]
+      }
     ]
   },
   {
     "id": "notif-email-berkala",
     "requirement": "Kirim email ringkasan penjualan ke saya setiap Senin pagi.",
-    "labelledBy": [],
-    "draft": true,
+    "labelledBy": [
+      "kurob",
+      "bagas"
+    ],
     "expectedTasks": [
-      { "keywords": ["ringkasan"], "complexity": "medium", "flags": [] }
+      {
+        "keywords": [
+          "ringkasan"
+        ],
+        "complexity": "medium",
+        "flags": []
+      }
     ]
   },
   {
     "id": "notif-push-mobile",
     "requirement": "Aplikasi mobile kami perlu push notification kalau ada promo baru. Pakai Firebase saja.",
-    "labelledBy": [],
-    "draft": true,
+    "labelledBy": [
+      "kurob",
+      "bagas"
+    ],
     "expectedTasks": [
-      { "keywords": ["push"], "complexity": "complex", "flags": ["THIRD_PARTY_DEPENDENCY"] }
+      {
+        "keywords": [
+          "push"
+        ],
+        "complexity": "complex",
+        "flags": [
+          "THIRD_PARTY_DEPENDENCY"
+        ]
+      }
     ]
   },
   {
     "id": "ongkir-rajaongkir",
     "requirement": "Ongkos kirim masih diketik manual. Saya mau otomatis ambil tarif JNE dan J&T berdasarkan alamat pelanggan.",
-    "labelledBy": [],
-    "draft": true,
+    "labelledBy": [
+      "kurob",
+      "bagas"
+    ],
     "expectedTasks": [
-      { "keywords": ["ongkos"], "complexity": "complex", "flags": ["THIRD_PARTY_DEPENDENCY"] }
+      {
+        "keywords": [
+          "ongkos"
+        ],
+        "complexity": "complex",
+        "flags": [
+          "THIRD_PARTY_DEPENDENCY"
+        ]
+      }
     ]
   },
   {
     "id": "maps-alamat",
     "requirement": "Waktu checkout, pelanggan pilih lokasi di peta supaya alamat kirimnya akurat.",
-    "labelledBy": [],
-    "draft": true,
+    "labelledBy": [
+      "kurob",
+      "bagas"
+    ],
     "expectedTasks": [
-      { "keywords": ["peta"], "complexity": "complex", "flags": ["THIRD_PARTY_DEPENDENCY"] }
+      {
+        "keywords": [
+          "peta"
+        ],
+        "complexity": "complex",
+        "flags": [
+          "THIRD_PARTY_DEPENDENCY"
+        ]
+      }
     ]
   },
   {
     "id": "laporan-penjualan",
     "requirement": "Saya butuh laporan penjualan per bulan: total omzet, jumlah pesanan, dan produk paling laku. Bisa diunduh jadi Excel.",
-    "labelledBy": [],
-    "draft": true,
+    "labelledBy": [
+      "kurob",
+      "bagas"
+    ],
     "expectedTasks": [
-      { "keywords": ["laporan"], "complexity": "medium", "flags": ["DATABASE_REVIEW"] },
-      { "keywords": ["excel"], "complexity": "medium", "flags": [] }
+      {
+        "keywords": [
+          "laporan"
+        ],
+        "complexity": "medium",
+        "flags": [
+          "DATABASE_REVIEW"
+        ]
+      },
+      {
+        "keywords": [
+          "excel"
+        ],
+        "complexity": "medium",
+        "flags": []
+      }
     ]
   },
   {
     "id": "dashboard-grafik",
     "requirement": "Di halaman utama admin tolong ada grafik penjualan 6 bulan terakhir dan angka ringkasan hari ini.",
-    "labelledBy": [],
-    "draft": true,
+    "labelledBy": [
+      "kurob",
+      "bagas"
+    ],
     "expectedTasks": [
-      { "keywords": ["grafik"], "complexity": "medium", "flags": [] }
+      {
+        "keywords": [
+          "grafik"
+        ],
+        "complexity": "medium",
+        "flags": []
+      }
     ]
   },
   {
     "id": "laporan-pajak",
     "requirement": "Kami perlu laporan PPN keluaran per bulan sesuai format e-Faktur supaya bisa dilapor ke pajak.",
-    "labelledBy": [],
-    "draft": true,
+    "labelledBy": [
+      "kurob",
+      "bagas"
+    ],
     "expectedTasks": [
-      { "keywords": ["pajak"], "complexity": "complex", "flags": ["CLARIFICATION_REQUIRED"] }
+      {
+        "keywords": [
+          "pajak"
+        ],
+        "complexity": "complex",
+        "flags": [
+          "CLARIFICATION_REQUIRED"
+        ]
+      }
     ]
   },
   {
     "id": "cetak-invoice",
     "requirement": "Setiap pesanan harus bisa dicetak jadi invoice PDF dengan logo dan stempel perusahaan.",
-    "labelledBy": [],
-    "draft": true,
+    "labelledBy": [
+      "kurob",
+      "bagas"
+    ],
     "expectedTasks": [
-      { "keywords": ["invoice"], "complexity": "medium", "flags": [] }
+      {
+        "keywords": [
+          "invoice"
+        ],
+        "complexity": "medium",
+        "flags": []
+      }
     ]
   },
   {
     "id": "migrasi-excel",
     "requirement": "Data produk dan pelanggan kami sekarang ada di Excel, sekitar 8.000 baris. Tolong dipindahkan ke sistem baru.",
-    "labelledBy": [],
-    "draft": true,
+    "labelledBy": [
+      "kurob",
+      "bagas"
+    ],
     "expectedTasks": [
-      { "keywords": ["migrasi"], "complexity": "complex", "flags": ["DATA_MIGRATION"] }
+      {
+        "keywords": [
+          "migrasi"
+        ],
+        "complexity": "complex",
+        "flags": [
+          "DATA_MIGRATION"
+        ]
+      }
     ]
   },
   {
     "id": "migrasi-sistem-lama",
     "requirement": "Kami mau pindah dari aplikasi lama yang pakai MySQL ke sistem baru. Data transaksi 5 tahun harus ikut dan tidak boleh ada yang hilang.",
-    "labelledBy": [],
-    "draft": true,
+    "labelledBy": [
+      "kurob",
+      "bagas"
+    ],
     "expectedTasks": [
       {
-        "keywords": ["migrasi"],
+        "keywords": [
+          "migrasi"
+        ],
         "complexity": "very_complex",
-        "flags": ["DATA_MIGRATION", "COMPLEX_REVIEW", "DATABASE_REVIEW"]
+        "flags": [
+          "DATA_MIGRATION",
+          "COMPLEX_REVIEW",
+          "DATABASE_REVIEW"
+        ]
       }
     ]
   },
   {
     "id": "import-berkala",
     "requirement": "Setiap pagi ada file CSV stok dari gudang. Saya mau sistem baca file itu otomatis dan update stok.",
-    "labelledBy": [],
-    "draft": true,
+    "labelledBy": [
+      "kurob",
+      "bagas"
+    ],
     "expectedTasks": [
-      { "keywords": ["csv"], "complexity": "complex", "flags": ["DATA_MIGRATION"] }
+      {
+        "keywords": [
+          "csv"
+        ],
+        "complexity": "complex",
+        "flags": [
+          "DATA_MIGRATION"
+        ]
+      }
     ]
   },
   {
     "id": "multi-cabang",
     "requirement": "Toko kami ada 4 cabang. Masing-masing punya stok dan kasir sendiri, tapi laporannya bisa dilihat gabungan oleh pusat.",
-    "labelledBy": [],
-    "draft": true,
+    "labelledBy": [
+      "kurob",
+      "bagas"
+    ],
     "expectedTasks": [
-      { "keywords": ["cabang"], "complexity": "very_complex", "flags": ["ARCHITECTURE_REVIEW", "COMPLEX_REVIEW"] }
+      {
+        "keywords": [
+          "cabang"
+        ],
+        "complexity": "very_complex",
+        "flags": [
+          "ARCHITECTURE_REVIEW",
+          "COMPLEX_REVIEW"
+        ]
+      }
     ]
   },
   {
     "id": "realtime-tracking",
     "requirement": "Pelanggan mau lihat posisi kurir secara langsung di peta waktu pesanan sedang diantar.",
-    "labelledBy": [],
-    "draft": true,
+    "labelledBy": [
+      "kurob",
+      "bagas"
+    ],
     "expectedTasks": [
       {
-        "keywords": ["kurir"],
+        "keywords": [
+          "kurir"
+        ],
         "complexity": "very_complex",
-        "flags": ["ARCHITECTURE_REVIEW", "COMPLEX_REVIEW", "THIRD_PARTY_DEPENDENCY"]
+        "flags": [
+          "ARCHITECTURE_REVIEW",
+          "COMPLEX_REVIEW",
+          "THIRD_PARTY_DEPENDENCY"
+        ]
       }
     ]
   },
   {
     "id": "chat-realtime",
     "requirement": "Tambahkan fitur chat antara pembeli dan penjual di dalam aplikasi, pesan masuk langsung muncul tanpa refresh.",
-    "labelledBy": [],
-    "draft": true,
+    "labelledBy": [
+      "kurob",
+      "bagas"
+    ],
     "expectedTasks": [
-      { "keywords": ["chat"], "complexity": "complex", "flags": ["ARCHITECTURE_REVIEW"] }
+      {
+        "keywords": [
+          "chat"
+        ],
+        "complexity": "complex",
+        "flags": [
+          "ARCHITECTURE_REVIEW"
+        ]
+      }
     ]
   },
   {
     "id": "antrian-laporan-berat",
     "requirement": "Laporan tahunan sekarang bikin aplikasi hang beberapa menit. Saya mau laporannya diproses di belakang layar lalu dikirim lewat email kalau sudah jadi.",
-    "labelledBy": [],
-    "draft": true,
+    "labelledBy": [
+      "kurob",
+      "bagas"
+    ],
     "expectedTasks": [
-      { "keywords": ["laporan"], "complexity": "complex", "flags": ["ARCHITECTURE_REVIEW"] }
+      {
+        "keywords": [
+          "laporan"
+        ],
+        "complexity": "complex",
+        "flags": [
+          "ARCHITECTURE_REVIEW"
+        ]
+      }
     ]
   },
   {
     "id": "performa-lambat",
     "requirement": "Halaman daftar pesanan lambat sekali, loadingnya belasan detik padahal datanya cuma 20 ribu baris. Tolong dicari penyebabnya.",
-    "labelledBy": [],
-    "draft": true,
+    "labelledBy": [
+      "kurob",
+      "bagas"
+    ],
     "expectedTasks": [
-      { "keywords": ["lambat"], "complexity": "medium", "flags": ["DATABASE_REVIEW"] }
+      {
+        "keywords": [
+          "lambat"
+        ],
+        "complexity": "medium",
+        "flags": [
+          "DATABASE_REVIEW"
+        ]
+      }
     ]
   },
   {
     "id": "performa-mobile",
     "requirement": "Aplikasi terasa berat kalau dibuka di HP kentang. Bisa dipercepat?",
-    "labelledBy": [],
-    "draft": true,
+    "labelledBy": [
+      "kurob",
+      "bagas"
+    ],
     "expectedTasks": [
-      { "keywords": ["performa"], "complexity": "medium", "flags": ["CLARIFICATION_REQUIRED"] }
+      {
+        "keywords": [
+          "performa"
+        ],
+        "complexity": "medium",
+        "flags": [
+          "CLARIFICATION_REQUIRED"
+        ]
+      }
     ]
   },
   {
     "id": "keamanan-audit",
     "requirement": "Kami mau sistem diperiksa keamanannya sebelum dipakai klien besar. Minimal tidak ada celah umum seperti SQL injection dan XSS.",
-    "labelledBy": [],
-    "draft": true,
+    "labelledBy": [
+      "kurob",
+      "bagas"
+    ],
     "expectedTasks": [
-      { "keywords": ["keamanan"], "complexity": "complex", "flags": ["ARCHITECTURE_REVIEW"] }
+      {
+        "keywords": [
+          "keamanan"
+        ],
+        "complexity": "complex",
+        "flags": [
+          "ARCHITECTURE_REVIEW"
+        ]
+      }
     ]
   },
   {
     "id": "backup-otomatis",
     "requirement": "Tolong atur backup database otomatis setiap malam dan simpan ke cloud storage, disimpan 30 hari ke belakang.",
-    "labelledBy": [],
-    "draft": true,
+    "labelledBy": [
+      "kurob",
+      "bagas"
+    ],
     "expectedTasks": [
-      { "keywords": ["backup"], "complexity": "medium", "flags": ["DATABASE_REVIEW"] }
+      {
+        "keywords": [
+          "backup"
+        ],
+        "complexity": "medium",
+        "flags": [
+          "DATABASE_REVIEW"
+        ]
+      }
     ]
   },
   {
     "id": "deploy-vps",
     "requirement": "Aplikasinya nanti ditaruh di VPS kami sendiri. Tolong sekalian disiapkan domain, HTTPS, dan auto-restart kalau servernya mati.",
-    "labelledBy": [],
-    "draft": true,
+    "labelledBy": [
+      "kurob",
+      "bagas"
+    ],
     "expectedTasks": [
-      { "keywords": ["deploy"], "complexity": "medium", "flags": [] }
+      {
+        "keywords": [
+          "deploy"
+        ],
+        "complexity": "medium",
+        "flags": []
+      }
     ]
   },
   {
     "id": "cicd-pipeline",
     "requirement": "Tim kami mau setiap push ke branch utama langsung ter-deploy otomatis ke server staging.",
-    "labelledBy": [],
-    "draft": true,
+    "labelledBy": [
+      "kurob",
+      "bagas"
+    ],
     "expectedTasks": [
-      { "keywords": ["deploy"], "complexity": "medium", "flags": [] }
+      {
+        "keywords": [
+          "deploy"
+        ],
+        "complexity": "medium",
+        "flags": []
+      }
     ]
   },
   {
     "id": "multi-bahasa",
     "requirement": "Website harus bisa dua bahasa, Indonesia dan Inggris, pengunjung bisa ganti sendiri lewat tombol di header.",
-    "labelledBy": [],
-    "draft": true,
+    "labelledBy": [
+      "kurob",
+      "bagas"
+    ],
     "expectedTasks": [
-      { "keywords": ["bahasa"], "complexity": "complex", "flags": [] }
+      {
+        "keywords": [
+          "bahasa"
+        ],
+        "complexity": "complex",
+        "flags": []
+      }
     ]
   },
   {
     "id": "seo-dasar",
     "requirement": "Website kami tidak muncul di Google. Tolong dibenahi supaya bisa terindeks dengan baik.",
-    "labelledBy": [],
-    "draft": true,
+    "labelledBy": [
+      "kurob",
+      "bagas"
+    ],
     "expectedTasks": [
-      { "keywords": ["seo"], "complexity": "medium", "flags": ["CLARIFICATION_REQUIRED"] }
+      {
+        "keywords": [
+          "seo"
+        ],
+        "complexity": "medium",
+        "flags": [
+          "CLARIFICATION_REQUIRED"
+        ]
+      }
     ]
   },
   {
     "id": "booking-jadwal",
     "requirement": "Klinik kami butuh sistem booking: pasien pilih dokter dan jam praktik yang masih kosong, lalu dapat konfirmasi.",
-    "labelledBy": [],
-    "draft": true,
+    "labelledBy": [
+      "kurob",
+      "bagas"
+    ],
     "expectedTasks": [
-      { "keywords": ["booking"], "complexity": "complex", "flags": [] }
+      {
+        "keywords": [
+          "booking"
+        ],
+        "complexity": "complex",
+        "flags": []
+      }
     ]
   },
   {
     "id": "langganan-bulanan",
     "requirement": "Saya mau sistem berlangganan bulanan. Kalau pelanggan telat bayar, akunnya otomatis nonaktif sampai bayar lagi.",
-    "labelledBy": [],
-    "draft": true,
+    "labelledBy": [
+      "kurob",
+      "bagas"
+    ],
     "expectedTasks": [
-      { "keywords": ["langganan"], "complexity": "very_complex", "flags": ["THIRD_PARTY_DEPENDENCY", "COMPLEX_REVIEW"] }
+      {
+        "keywords": [
+          "langganan"
+        ],
+        "complexity": "very_complex",
+        "flags": [
+          "THIRD_PARTY_DEPENDENCY",
+          "COMPLEX_REVIEW"
+        ]
+      }
     ]
   },
   {
     "id": "poin-loyalitas",
     "requirement": "Pelanggan dapat poin tiap belanja, poinnya bisa ditukar jadi diskon. Aturan poinnya saya mau bisa diubah sendiri.",
-    "labelledBy": [],
-    "draft": true,
+    "labelledBy": [
+      "kurob",
+      "bagas"
+    ],
     "expectedTasks": [
-      { "keywords": ["poin"], "complexity": "complex", "flags": [] }
+      {
+        "keywords": [
+          "poin"
+        ],
+        "complexity": "complex",
+        "flags": []
+      }
     ]
   },
   {
     "id": "ulasan-produk",
     "requirement": "Pembeli yang sudah terima barang bisa kasih bintang dan komentar. Komentar kasar harus bisa saya hapus.",
-    "labelledBy": [],
-    "draft": true,
+    "labelledBy": [
+      "kurob",
+      "bagas"
+    ],
     "expectedTasks": [
-      { "keywords": ["ulasan"], "complexity": "medium", "flags": [] }
+      {
+        "keywords": [
+          "ulasan"
+        ],
+        "complexity": "medium",
+        "flags": []
+      }
     ]
   },
   {
     "id": "ekspor-akuntansi",
     "requirement": "Data penjualan harus bisa masuk ke Accurate, software akuntansi yang kami pakai. Belum tahu caranya, mungkin lewat file atau koneksi langsung.",
-    "labelledBy": [],
-    "draft": true,
+    "labelledBy": [
+      "kurob",
+      "bagas"
+    ],
     "expectedTasks": [
       {
-        "keywords": ["accurate"],
+        "keywords": [
+          "accurate"
+        ],
         "complexity": "very_complex",
-        "flags": ["THIRD_PARTY_DEPENDENCY", "COMPLEX_REVIEW", "CLARIFICATION_REQUIRED"]
+        "flags": [
+          "THIRD_PARTY_DEPENDENCY",
+          "COMPLEX_REVIEW",
+          "CLARIFICATION_REQUIRED"
+        ]
       }
     ]
   },
   {
     "id": "ambigu-aplikasi-kasir",
     "requirement": "Saya butuh aplikasi kasir untuk warung saya. Yang penting bisa dipakai sehari-hari.",
-    "labelledBy": [],
-    "draft": true,
+    "labelledBy": [
+      "kurob",
+      "bagas"
+    ],
     "expectedTasks": [
-      { "keywords": ["kasir"], "complexity": "very_complex", "flags": ["COMPLEX_REVIEW", "CLARIFICATION_REQUIRED"] }
+      {
+        "keywords": [
+          "kasir"
+        ],
+        "complexity": "very_complex",
+        "flags": [
+          "COMPLEX_REVIEW",
+          "CLARIFICATION_REQUIRED"
+        ]
+      }
     ]
   },
   {
     "id": "ambigu-mirip-tokopedia",
     "requirement": "Pokoknya saya mau aplikasi seperti Tokopedia tapi versi kecil, khusus produk pertanian. Budget terbatas.",
-    "labelledBy": [],
-    "draft": true,
+    "labelledBy": [
+      "kurob",
+      "bagas"
+    ],
     "expectedTasks": [
-      { "keywords": ["marketplace"], "complexity": "very_complex", "flags": ["COMPLEX_REVIEW", "CLARIFICATION_REQUIRED"] }
+      {
+        "keywords": [
+          "marketplace"
+        ],
+        "complexity": "very_complex",
+        "flags": [
+          "COMPLEX_REVIEW",
+          "CLARIFICATION_REQUIRED"
+        ]
+      }
     ]
   },
   {
     "id": "perubahan-scope",
     "requirement": "Kemarin sudah sepakat form pendaftarannya 5 kolom, tapi sekarang klien minta ditambah upload KTP dan verifikasi manual admin.",
-    "labelledBy": [],
-    "draft": true,
+    "labelledBy": [
+      "kurob",
+      "bagas"
+    ],
     "expectedTasks": [
-      { "keywords": ["ktp"], "complexity": "medium", "flags": ["CHANGE_REQUEST"] }
+      {
+        "keywords": [
+          "ktp"
+        ],
+        "complexity": "medium",
+        "flags": [
+          "CHANGE_REQUEST"
+        ]
+      }
     ]
   },
   {
     "id": "whitelabel-tenant",
     "requirement": "Tiap klien kami mau punya subdomain sendiri dengan logo dan warna masing-masing, tapi aplikasinya satu.",
-    "labelledBy": [],
-    "draft": true,
+    "labelledBy": [
+      "kurob",
+      "bagas"
+    ],
     "expectedTasks": [
-      { "keywords": ["subdomain"], "complexity": "very_complex", "flags": ["ARCHITECTURE_REVIEW", "COMPLEX_REVIEW"] }
+      {
+        "keywords": [
+          "subdomain"
+        ],
+        "complexity": "very_complex",
+        "flags": [
+          "ARCHITECTURE_REVIEW",
+          "COMPLEX_REVIEW"
+        ]
+      }
     ]
   }
 ]
