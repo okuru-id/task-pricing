@@ -3,7 +3,7 @@
 > Diturunkan dari [taskpricer-prd-v2.md](taskpricer-prd-v2.md) (sumber utama) dan [taskpricer-prd.md](taskpricer-prd.md). Referensi `§n` = nomor section di PRD v2.
 
 Status: seluruh item MVP sudah dibangun (kecuali yang ditandai terbuka di bawah). Backlog v1.1/v2.0 belum dikerjakan.
-Release gate AI: harness sudah ada, golden set 50 kasus berlabel manusia belum tersedia.
+Release gate AI: golden set 53 kasus sudah dilabeli 2 reviewer. Gate masih merah — complexity accuracy 44,6% dan flag precision 27,4% (lihat bagian Evaluation).
 
 Setup lokal: Postgres jalan di Docker (`taskpricer-db`, port 5433). Jalankan `npm run dev`, `npm run test:run`.
 
@@ -43,7 +43,8 @@ Setup lokal: Postgres jalan di Docker (`taskpricer-db`, port 5433). Jalankan `np
 - [x] UI Settings (`/settings`): provider, Base URL, model, temperature, instruksi global, **API key (BYOK)** + Tes koneksi, serta identitas perusahaan untuk PDF. **Konfigurasi AI hanya dari DB — tidak ada fallback ke env** (`OPENAI_*` tidak dibaca). Key dienkripsi AES-256-GCM (kunci turunan `AUTH_SECRET`), write-only di UI; Base URL dibatasi ke tujuan publik: validasi saat simpan + guard saat koneksi (cek alamat hasil DNS saat connect = anti DNS rebinding, IP literal, redirect ditolak; `src/lib/ai/guarded-fetch.ts`). Localhost/jaringan privat hanya untuk self-host lewat `AI_ALLOW_PRIVATE_ENDPOINTS=true`. Tanpa konfigurasi lengkap analisis tidak dimulai dan user diarahkan ke Settings
 - [x] Halaman Pricing (`/pricing`): ubah harga per kompleksitas sebagai versi rule baru
 - [x] Progress per tahap yang nyata (`src/lib/ai/stages.ts`, `job.ts`): extract → breakdown → kompleksitas → dependensi (4 panggilan AI, masing-masing satu tool call terstruktur) → estimasi (mesin harga + guardrail, tanpa AI). Keluaran tiap tahap disimpan di `analysis_jobs`; tahap yang gagal diulang sendirian ("Ulangi tahap ini"), analisis yang terhenti bisa dilanjutkan setelah reload. Tiap tahap wajib menjawab SEMUA task (jawaban parsial = tahap gagal). Lease bertoken (fencing) mencegah pekerja basi menimpa hasil; job yang sudah digantikan job lebih baru tidak bisa dilanjutkan/menimpa.
-- [ ] Belum diukur terhadap model sungguhan: biaya/latensi ~4× panggilan dibanding satu panggilan, dan kualitas hasil bertahap vs satu panggilan — jalankan `npm run eval` sebelum rilis (script eval kini memakai pipeline bertahap yang sama)
+- [x] Latensi per tahap terukur (1 kasus, 5 task, `glm/glm-5.3`): extract 17,4s · breakdown 21,9s · **complexity 17,6s** · **dependencies 43,5s** · total 100,4s. Tahap dependensi (flag + usulan milestone) sendirian memakan 43% waktu — kandidat utama kalau analisis perlu dipercepat untuk user
+- [ ] Kualitas pipeline bertahap vs satu panggilan belum dibandingkan langsung (butuh varian satu-panggilan untuk diukur dengan golden set yang sama)
 
 > **Catatan provider (penting):** `@ai-sdk/openai` default memakai Responses API. Kode memakai
 > `.chat()` agar lewat `/v1/chat/completions`. Ada pula `sanitizingFetch` di `src/lib/ai/provider.ts`
@@ -103,10 +104,21 @@ Setup lokal: Postgres jalan di Docker (`taskpricer-db`, port 5433). Jalankan `np
 - [ ] Billing SaaS (Midtrans/Xendit/Stripe)
 
 ## Evaluation & Release Gate (§3, §5 — wajib sebelum rilis)
-- [ ] Golden set: 50 requirement berlabel (2 reviewer). Pelabelan dibantu `npm run label -- --reviewer="Nama"` (lihat `evals/README.md`). `evals/golden/v1.json` kini berisi **53 kasus dengan label draft** (`"draft": true`, `labelledBy: []`) — **masih butuh verifikasi 2 reviewer manusia** sebelum sah jadi bukti rilis. Cara mereview ada di `evals/README.md`
-- [ ] **Temuan eval pertama terhadap model sungguhan** (`glm/glm-5.3-flash`, 3 kasus, `--limit=3 --show`): extraction recall 100% dan schema validity 100%, tapi **complexity accuracy 25%** dan **flag precision 29%**. Dua sebab terpisah:
-  1. Model melebih-lebihkan kompleksitas — "Integrasi login Google" dan "Update status pesanan jadi Dibayar" dinilai `very_complex`. Akibatnya harga jadi range kustom yang harus diisi manual, padahal mestinya `medium`. Perlu diuji dengan model yang lebih kuat sebelum menyalahkan prompt
-  2. Flag false positive dari dua arah: model mengarang flag sendiri (`DATA_MIGRATION` pada task pembuatan akun), dan `THIRD_PARTY_HINTS` di `src/lib/ai/analyze.ts` terlalu luas — task "Kirim email konfirmasi" ikut kena `THIRD_PARTY_DEPENDENCY` hanya karena namanya memuat kata "pembayaran". Mempersempit regex ini menukar risiko underprice (§2 US4) dengan presisi flag — **keputusan produk, belum diambil**
+- [x] Golden set: `evals/golden/v1.json` berisi **53 kasus, semuanya dilabeli 2 reviewer** (kurob, bagas) — syarat §5 terpenuhi, skor eval kini sah sebagai bukti rilis. Pelabelan dibantu `npm run label -- --reviewer="Nama"` (lihat `evals/README.md`)
+- [ ] **Gate masih merah.** Eval penuh pertama (53 kasus, `glm/glm-5.3`, 19m50s):
+
+  | Metrik | Hasil | Ambang | |
+  |---|---|---|---|
+  | schema validity | 100% | 98% | ✅ |
+  | extraction recall | 96,6% | 95% | ✅ |
+  | complexity accuracy | 44,6% | 85% | ❌ |
+  | flag precision | 27,4% | 90% | ❌ |
+  | hallucinations | 7 | 0 | ❌ |
+
+  Tindak lanjut:
+  1. **Complexity accuracy** — murni kualitas model, bukan prompt (angka stabil lintas run). Dengan model ini lebih dari separuh harga yang keluar salah. **Langkah berikutnya: uji model kelas berat** dari daftar provider (mis. `cmc/deepseek/deepseek-v4-pro`, `alitp-intl/qwen3.7-max`), baru nilai apakah prompt perlu disentuh
+  2. **Flag precision** — bug `\bapi\b` sudah diperbaiki (regex lama menandai "Rapikan"), efeknya belum diukur. Sisanya keputusan produk: pemicu seperti "pembayaran" menandai task yang hanya menyebut kata itu (mis. "Kirim email konfirmasi setelah pembayaran"). Mempersempitnya menukar presisi flag dengan risiko underprice (§2 US4) — **belum diputuskan**
+  3. **7 halusinasi** — belum didiagnosis. Heuristiknya konservatif (task tanpa kecocokan label dan tanpa kata bersama requirement), jadi bisa saja task sah seperti "Setup struktur proyek". Run berikutnya menyimpan `evals/last-run.json`, jadi bisa diperiksa tanpa memanggil model lagi
 - [x] Script eval offline (`npm run eval`, metrik di `src/lib/eval/metrics.ts`): complexity accuracy ≥ 85%, extraction recall ≥ 95%, flag precision ≥ 90%, hallucination = 0, schema validity ≥ 98%. **Sudah dijalankan terhadap model sungguhan** (lihat temuan di bawah). Tambahan: `--limit=N` untuk uji murah (hasil ditandai parsial, tidak bisa jadi baseline), `--show` untuk melihat keluaran model saat melabeli, dan `labelProblems()` menolak label cacat sebelum model dipanggil
 - [x] Regression check: bandingkan dengan `evals/baseline.json`, gagal jika turun > 5 poin (`--update-baseline` untuk menyimpan). Baseline belum ada sampai eval pertama dijalankan
 - [x] Runner menolak "layak rilis" jika golden set < 50 kasus atau ada kasus dengan < 2 reviewer
