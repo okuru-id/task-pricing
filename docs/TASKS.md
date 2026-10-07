@@ -84,7 +84,7 @@ Setup lokal: Postgres jalan di Docker (`taskpricer-db`, port 5433). Jalankan `np
 - [x] Status flow: Draft → Analyzed → Quoted → Accepted/Rejected → Completed → Archived (`src/lib/project-status.ts`); analisis ulang / versi quotation baru tidak menurunkan status
 - [x] Soft delete project & quotation (audit trail, `deletedAt`)
 - [x] Halaman History (`/history`): semua project + versi quotation, filter status, opsi tampilkan yang dihapus
-- [ ] Archived tidak bisa dikembalikan (belum ada alur un-archive)
+- [x] Un-archive: tombol "Pulihkan dari arsip" mengembalikan project ke status sebelum diarsipkan (`projects.archivedFrom`); jika isinya berubah (mis. quotation dihapus) diturunkan ke status yang konsisten, dan project lama tanpa riwayat ditebak dari isinya (`restoreTarget`)
 
 ---
 

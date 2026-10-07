@@ -344,6 +344,56 @@ describe.skipIf(!DB_URL)("isolasi antar workspace", () => {
     expect((await requireAiSettings(a.ws)).apiKey).toBeNull();
   });
 
+  it("un-archive: pulih ke status sebelumnya, dijaga per workspace, dan turun jika isinya berubah", async () => {
+    const lifecycle = await import("@/app/(app)/projects/[id]/lifecycle-actions");
+    const project = await prisma.project.create({
+      data: {
+        workspaceId: a.ws,
+        name: "Project arsip",
+        status: "ACCEPTED",
+        estimations: {
+          create: {
+            requirement: "z".repeat(60),
+            tasks: { create: { name: "T", type: "BUG", complexity: "SIMPLE", price: 1 } },
+          },
+        },
+      },
+      include: { estimations: true },
+    });
+    const quotation = await prisma.quotation.create({
+      data: { estimationId: project.estimations[0].id, total: 1, assumptions: [], exclusions: [] },
+    });
+    const statusOf = async () => (await prisma.project.findUniqueOrThrow({ where: { id: project.id } })).status;
+
+    // Memulihkan project yang tidak diarsipkan ditolak.
+    asA();
+    expect(await lifecycle.restoreProject(project.id)).toMatchObject({ ok: false });
+
+    expect(await lifecycle.setProjectStatus(project.id, "ARCHIVED")).toEqual({ ok: true });
+    expect((await prisma.project.findUniqueOrThrow({ where: { id: project.id } })).archivedFrom).toBe("ACCEPTED");
+
+    // Workspace lain tidak bisa memulihkan.
+    asB();
+    expect(await lifecycle.restoreProject(project.id)).toMatchObject({ ok: false });
+    expect(await statusOf()).toBe("ARCHIVED");
+
+    asA();
+    expect(await lifecycle.restoreProject(project.id)).toEqual({ ok: true });
+    const restored = await prisma.project.findUniqueOrThrow({ where: { id: project.id } });
+    expect(restored).toMatchObject({ status: "ACCEPTED", archivedFrom: null });
+
+    // Quotation dihapus selama diarsipkan → tidak boleh kembali ke Accepted.
+    expect(await lifecycle.setProjectStatus(project.id, "ARCHIVED")).toEqual({ ok: true });
+    await prisma.quotation.update({ where: { id: quotation.id }, data: { deletedAt: new Date() } });
+    expect(await lifecycle.restoreProject(project.id)).toEqual({ ok: true });
+    expect(await statusOf()).toBe("ANALYZED");
+
+    // Project lama yang diarsipkan sebelum kolom archivedFrom ada (null) → ditebak dari isinya.
+    await prisma.project.update({ where: { id: project.id }, data: { status: "ARCHIVED", archivedFrom: null } });
+    expect(await lifecycle.restoreProject(project.id)).toEqual({ ok: true });
+    expect(await statusOf()).toBe("ANALYZED");
+  });
+
   it("analisis per tahap: simpan asumsi + milestone, tahap gagal diulang sendirian, analisis ulang mengganti hasil", async () => {
     await ensureAiConfig();
     const { createAnalysisJob, advanceJob, getResumableJob } = await import("@/lib/ai/job");

@@ -133,7 +133,7 @@ Multiple profile per user (Freelance Standard, Corporate, Maintenance, Custom). 
 
 ### Project Lifecycle
 
-Status: `Draft → Analyzed → Quoted → Accepted / Rejected → Completed → Archived`. Satu project boleh punya banyak versi estimation/quotation. Change request = task baru berflag `CHANGE_REQUEST` dibandingkan dengan original scope.
+Status: `Draft → Analyzed → Quoted → Accepted / Rejected → Completed → Archived`. Project yang diarsipkan dapat dipulihkan ke status sebelumnya (disesuaikan bila isinya sudah berubah). Satu project boleh punya banyak versi estimation/quotation. Change request = task baru berflag `CHANGE_REQUEST` dibandingkan dengan original scope.
 
 ### User Stories & Acceptance Criteria
 

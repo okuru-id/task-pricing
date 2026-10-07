@@ -195,6 +195,8 @@ model Project {
   name        String
   clientName  String?
   status      ProjectStatus @default(DRAFT)
+  /// Status sebelum diarsipkan, dipakai untuk memulihkan (un-archive). Null untuk project yang belum pernah diarsipkan.
+  archivedFrom ProjectStatus?
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
   deletedAt   DateTime?
