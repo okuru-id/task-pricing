@@ -338,14 +338,4 @@ describe.skipIf(!DB_URL)("isolasi antar workspace", () => {
     await prisma.analysisJob.update({ where: { id: jobId }, data: { lockedUntil: new Date(Date.now() - 1000) } });
     expect(await advanceJob(jobId, a.ws)).toEqual({ state: "progress", completed: 1 });
   });
-
-  it("analisis AI memakai kuota per workspace", async () => {
-    const { consumeAnalysisQuota, ANALYSIS_LIMIT } = await import("@/lib/rate-limit");
-    for (let i = 0; i < ANALYSIS_LIMIT; i++) {
-      expect(await consumeAnalysisQuota(a.ws)).toEqual({ allowed: true });
-    }
-    expect(await consumeAnalysisQuota(a.ws)).toMatchObject({ allowed: false });
-    // Workspace lain tidak ikut terkunci.
-    expect(await consumeAnalysisQuota(b.ws)).toEqual({ allowed: true });
-  });
 });

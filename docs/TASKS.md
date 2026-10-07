@@ -17,7 +17,7 @@ Setup lokal: Postgres jalan di Docker (`taskpricer-db`, port 5433). Jalankan `np
 - [x] `requireScope()` di `src/lib/workspace.ts` sebagai satu-satunya pintu masuk query ber-scope `workspace_id`
 - [ ] Email magic link (butuh Resend/SMTP — digabung dengan Email quotation di v1.1)
 - [x] Test otomatis cross-tenant (`src/tenancy.integration.test.ts`, butuh `TEST_DATABASE_URL` ke Postgres yang sudah dimigrasi; di-skip tanpa itu)
-- [x] Rate limit analisis AI 20/jam/workspace (`src/lib/rate-limit.ts`, tabel `analysis_runs`; percobaan gagal ikut dihitung)
+- [x] ~~Rate limit analisis AI~~ — **tidak dipakai**: aplikasi BYOK (API key milik user), biaya model tidak ditanggung aplikasi, jadi tidak ada kuota. Kode dan tabel `analysis_runs` sudah dihapus
 
 ### 2. Database (§4 Data Model) — SELESAI
 - [x] Postgres lokal via Docker + `DATABASE_URL`
@@ -42,7 +42,7 @@ Setup lokal: Postgres jalan di Docker (`taskpricer-db`, port 5433). Jalankan `np
 - [x] UI progress 5 tahap
 - [x] UI Settings (`/settings`): provider/model/temperature/instruksi global + identitas perusahaan untuk PDF. API key tetap di `.env`
 - [x] Halaman Pricing (`/pricing`): ubah harga per kompleksitas sebagai versi rule baru
-- [x] Progress per tahap yang nyata (`src/lib/ai/stages.ts`, `job.ts`): extract → breakdown → kompleksitas → dependensi (4 panggilan AI, masing-masing satu tool call terstruktur) → estimasi (mesin harga + guardrail, tanpa AI). Keluaran tiap tahap disimpan di `analysis_jobs`; tahap yang gagal diulang sendirian ("Ulangi tahap ini"), analisis yang terhenti bisa dilanjutkan setelah reload. Tiap tahap wajib menjawab SEMUA task (jawaban parsial = tahap gagal). Kuota 20/jam dihitung per analisis, bukan per tahap
+- [x] Progress per tahap yang nyata (`src/lib/ai/stages.ts`, `job.ts`): extract → breakdown → kompleksitas → dependensi (4 panggilan AI, masing-masing satu tool call terstruktur) → estimasi (mesin harga + guardrail, tanpa AI). Keluaran tiap tahap disimpan di `analysis_jobs`; tahap yang gagal diulang sendirian ("Ulangi tahap ini"), analisis yang terhenti bisa dilanjutkan setelah reload. Tiap tahap wajib menjawab SEMUA task (jawaban parsial = tahap gagal).
 - [ ] Belum diukur terhadap model sungguhan: biaya/latensi ~4× panggilan dibanding satu panggilan, dan kualitas hasil bertahap vs satu panggilan — jalankan `npm run eval` sebelum rilis (script eval kini memakai pipeline bertahap yang sama)
 
 > **Catatan provider (penting):** `@ai-sdk/openai` default memakai Responses API. Kode memakai

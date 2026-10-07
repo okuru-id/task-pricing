@@ -144,7 +144,6 @@ model Workspace {
   pricingProfiles PricingProfile[]
   projects        Project[]
   aiConfigs       AiConfig[]
-  analysisRuns    AnalysisRun[]
 
   @@map("workspaces")
 }
@@ -369,18 +368,6 @@ model AiEvalRun {
   estimation Estimation @relation(fields: [estimationId], references: [id])
 
   @@map("ai_eval_runs")
-}
-
-/// Catatan tiap panggilan analisis AI per workspace — dasar rate limit (§4 Security).
-model AnalysisRun {
-  id          String   @id @default(cuid())
-  workspaceId String
-  createdAt   DateTime @default(now())
-
-  workspace Workspace @relation(fields: [workspaceId], references: [id])
-
-  @@index([workspaceId, createdAt])
-  @@map("analysis_runs")
 }
 
 /// Status analisis AI per tahap. `data` menyimpan keluaran tiap tahap yang sudah selesai sehingga

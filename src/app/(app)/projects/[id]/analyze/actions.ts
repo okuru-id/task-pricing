@@ -5,12 +5,11 @@ import { revalidatePath } from "next/cache";
 import { AnalysisError } from "@/lib/ai/analyze";
 import { advanceJob, createAnalysisJob, type AdvanceResult } from "@/lib/ai/job";
 import { prisma } from "@/lib/prisma";
-import { ANALYSIS_LIMIT, consumeAnalysisQuota } from "@/lib/rate-limit";
 import { requireScope } from "@/lib/workspace";
 
 export type BeginResult = { ok: true; jobId: string } | { ok: false; error: string };
 
-/** Mulai analisis baru: validasi, ambil kuota (sekali per analisis, bukan per tahap), lalu buat job. */
+/** Mulai analisis baru: validasi lalu buat job. Tanpa kuota — API key milik user sendiri (BYOK), biayanya tidak ditanggung aplikasi. */
 export async function beginAnalysis(projectId: string): Promise<BeginResult> {
   const { workspaceId } = await requireScope();
 
@@ -22,14 +21,6 @@ export async function beginAnalysis(projectId: string): Promise<BeginResult> {
   if (!estimation) return { ok: false, error: "Estimation tidak ditemukan" };
   if (estimation.requirement.trim().length < 50) {
     return { ok: false, error: "Requirement terlalu pendek untuk dianalisis" };
-  }
-
-  const quota = await consumeAnalysisQuota(workspaceId);
-  if (!quota.allowed) {
-    return {
-      ok: false,
-      error: `Batas ${ANALYSIS_LIMIT} analisis per jam tercapai. Coba lagi sekitar ${quota.retryAfterMinutes} menit lagi.`,
-    };
   }
 
   try {
