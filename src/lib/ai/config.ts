@@ -2,14 +2,9 @@ import { isPrivateHostname } from "./net";
 
 /** Aturan murni untuk konfigurasi AI per workspace (BYOK). Tanpa DB dan tanpa environment. */
 
-export const AI_PROVIDERS = {
-  openai: "OpenAI / OpenAI-compatible",
-  ollama: "Ollama (lokal)",
-} as const;
-
-export type AiProvider = keyof typeof AI_PROVIDERS;
-
-export const OLLAMA_DEFAULT_BASE_URL = "http://localhost:11434/v1";
+// Hanya untuk kode server. Client component wajib mengimpor langsung dari "./providers",
+// karena modul ini menarik node:net lewat ./net dan akan merusak build browser.
+export { AI_PROVIDERS, OLLAMA_DEFAULT_BASE_URL, type AiProvider } from "./providers";
 
 /** Host yang tidak pernah sah sebagai endpoint model, apa pun kebijakannya: metadata cloud/link-local. */
 const BLOCKED_HOSTS = new Set(["metadata.google.internal", "metadata", "instance-data"]);
