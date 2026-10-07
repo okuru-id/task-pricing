@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+
 import type { Prisma } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
@@ -38,12 +40,15 @@ export async function createAnalysisJob(estimationId: string, workspaceId: strin
   return job.id;
 }
 
-/** Job terakhir yang belum selesai (berjalan/gagal) untuk estimation ini, jika masih baru. */
+/**
+ * Job TERBARU untuk estimation ini, hanya jika belum selesai (berjalan/gagal) dan masih baru.
+ * Yang dicari adalah job terbaru apa pun statusnya: job lama yang gagal tidak boleh muncul lagi setelah
+ * "Mulai ulang" membuat job yang lebih baru (apalagi sudah selesai), karena melanjutkannya akan menimpa hasil baru.
+ */
 export async function getResumableJob(estimationId: string, workspaceId: string) {
-  const job = await prisma.analysisJob.findFirst({
+  const latest = await prisma.analysisJob.findFirst({
     where: {
       estimationId,
-      status: { in: ["RUNNING", "FAILED"] },
       createdAt: { gt: new Date(Date.now() - RESUME_WINDOW_MS) },
       estimation: { project: { workspaceId, deletedAt: null } },
     },
@@ -51,11 +56,18 @@ export async function getResumableJob(estimationId: string, workspaceId: string)
     select: { id: true, stage: true, status: true, error: true },
   });
 
-  return job && job.stage < STAGE_COUNT ? job : null;
+  return latest && latest.status !== "DONE" && latest.stage < STAGE_COUNT ? latest : null;
 }
 
 const messageOf = (error: unknown) =>
   error instanceof Error ? error.message : "Analisis gagal karena kesalahan tak terduga";
+
+/** Lease diambil alih pekerja lain saat tahap ini berjalan — hasil pekerja ini harus dibuang. */
+class StaleClaimError extends Error {}
+/** Ada analisis yang lebih baru untuk estimation yang sama; job ini tidak boleh menyimpan hasilnya. */
+class SupersededError extends Error {}
+
+const SUPERSEDED_MESSAGE = "Analisis ini sudah digantikan oleh analisis yang lebih baru. Mulai analisis baru dari halaman Analisis.";
 
 export async function advanceJob(jobId: string, workspaceId: string): Promise<AdvanceResult> {
   const job = await prisma.analysisJob.findFirst({
@@ -65,6 +77,7 @@ export async function advanceJob(jobId: string, workspaceId: string): Promise<Ad
       stage: true,
       status: true,
       data: true,
+      createdAt: true,
       estimationId: true,
       estimation: { select: { requirement: true } },
     },
@@ -77,8 +90,18 @@ export async function advanceJob(jobId: string, workspaceId: string): Promise<Ad
     return { state: "done", taskCount };
   }
 
-  // Lease: hanya satu permintaan yang boleh menjalankan tahap ini (klik ganda / dua tab).
+  // Job yang sudah digantikan job lebih baru tidak boleh berjalan: ia bisa menimpa hasil analisis yang lebih baru.
+  const hasNewer = (client: Pick<Prisma.TransactionClient, "analysisJob">) =>
+    client.analysisJob.count({ where: { estimationId: job.estimationId, createdAt: { gt: job.createdAt } } });
+  if ((await hasNewer(prisma)) > 0) {
+    return { state: "failed", stage: job.stage, error: SUPERSEDED_MESSAGE };
+  }
+
+  // Lease + token: hanya satu permintaan yang boleh menjalankan tahap ini (klik ganda / dua tab).
+  // Token itu menjadi "fence": setiap penulisan hasil mencocokkannya, sehingga pekerja yang leasenya sudah
+  // kedaluwarsa dan diambil alih tidak bisa menimpa hasil atau mengosongkan lease pekerja yang lebih baru.
   const now = new Date();
+  const token = randomUUID();
   const claimed = await prisma.analysisJob.updateMany({
     where: {
       id: job.id,
@@ -86,20 +109,25 @@ export async function advanceJob(jobId: string, workspaceId: string): Promise<Ad
       status: { in: ["RUNNING", "FAILED"] },
       OR: [{ lockedUntil: null }, { lockedUntil: { lt: now } }],
     },
-    data: { status: "RUNNING", error: null, lockedUntil: new Date(now.getTime() + LEASE_MS) },
+    data: { status: "RUNNING", error: null, lockedUntil: new Date(now.getTime() + LEASE_MS), claimToken: token },
   });
   if (claimed.count === 0) return { state: "busy" };
 
+  const owned = { id: job.id, claimToken: token, stage: job.stage };
   const stage = STAGES[job.stage];
   const data = (job.data ?? {}) as StageData;
 
   try {
     if (stage.key === "estimate") {
       // Tahap akhir tanpa AI: rakit, terapkan guardrail, hitung harga lewat mesin harga, simpan.
-      const { taskCount } = await persistAnalysis(job.estimationId, workspaceId, assembleAnalysis(data));
-      await prisma.analysisJob.update({
-        where: { id: job.id },
-        data: { status: "DONE", stage: STAGE_COUNT, lockedUntil: null },
+      // Kepemilikan dan "belum digantikan" diperiksa DI DALAM transaksi penyimpanan; jika gagal, semuanya rollback.
+      const { taskCount } = await persistAnalysis(job.estimationId, workspaceId, assembleAnalysis(data), async (tx) => {
+        const done = await tx.analysisJob.updateMany({
+          where: owned,
+          data: { status: "DONE", stage: STAGE_COUNT, lockedUntil: null, claimToken: null },
+        });
+        if (done.count === 0) throw new StaleClaimError();
+        if ((await hasNewer(tx)) > 0) throw new SupersededError();
       });
       return { state: "done", taskCount };
     }
@@ -107,20 +135,28 @@ export async function advanceJob(jobId: string, workspaceId: string): Promise<Ad
     const settings = await requireAiSettings(workspaceId);
     const output = await runAiStage(stage.key, job.estimation.requirement, data, settings);
 
-    await prisma.analysisJob.update({
-      where: { id: job.id },
+    const saved = await prisma.analysisJob.updateMany({
+      where: owned,
       data: {
         stage: job.stage + 1,
         data: { ...data, [stage.key]: output } as Prisma.InputJsonValue,
         lockedUntil: null,
+        claimToken: null,
       },
     });
+    // Lease sudah diambil pekerja lain → buang hasil ini; klien cukup memanggil lagi dan membaca status terbaru.
+    if (saved.count === 0) return { state: "busy" };
     return { state: "progress", completed: job.stage + 1 };
   } catch (error) {
-    await prisma.analysisJob.update({
-      where: { id: job.id },
-      data: { status: "FAILED", error: messageOf(error), lockedUntil: null },
+    if (error instanceof StaleClaimError) return { state: "busy" };
+
+    const message = error instanceof SupersededError ? SUPERSEDED_MESSAGE : messageOf(error);
+    // Tulis kegagalan hanya jika lease masih milik kita; kalau tidak, pekerja lain yang menentukan statusnya.
+    const failed = await prisma.analysisJob.updateMany({
+      where: { id: job.id, claimToken: token },
+      data: { status: "FAILED", error: message, lockedUntil: null, claimToken: null },
     });
-    return { state: "failed", stage: job.stage, error: messageOf(error) };
+    if (failed.count === 0) return { state: "busy" };
+    return { state: "failed", stage: job.stage, error: message };
   }
 }

@@ -173,7 +173,7 @@ Bukan: full project management, accounting, invoice system, CRM, ERP, time track
   - AC: tanpa konfigurasi lengkap, analisis tidak dimulai dan user diarahkan ke Settings (pesan jelas, bukan error teknis).
   - AC: API key dienkripsi at-rest (AES-256-GCM, kunci turunan `AUTH_SECRET`), tidak pernah dikirim kembali ke klien (UI hanya menampilkan 4 karakter terakhir), dan tidak muncul di log. Isi key kosong saat menyimpan = pertahankan key lama; tersedia aksi hapus key.
   - AC: tombol **Tes koneksi** mengirim satu permintaan kecil agar salah key/URL/model ketahuan sebelum analisis.
-  - AC: Base URL divalidasi (hanya http/https, tanpa kredensial di URL, alamat metadata cloud ditolak). Localhost diizinkan untuk Ollama/gateway lokal.
+  - AC: Base URL divalidasi (hanya http/https, tanpa kredensial di URL). **Endpoint di localhost/jaringan privat/link-local/metadata cloud diblokir secara default** (pada SaaS "localhost" adalah server aplikasi, bukan mesin user). Pemeriksaan tidak cukup saat menyimpan: setiap koneksi keluar memvalidasi alamat hasil DNS pada saat connect (anti DNS rebinding), memeriksa IP literal, dan menolak redirect. Ollama lokal / gateway internal hanya untuk instalasi self-host dengan kebijakan operator `AI_ALLOW_PRIVATE_ENDPOINTS=true` (bukan konfigurasi AI, tetapi pengaman deployment).
 - **Library**: Vercel AI SDK (`ai`) — satu antarmuka untuk semua provider di atas, dengan structured output (Zod schema).
 - **Custom skill/prompt**: user dapat menambah instruksi global (mis. "Selalu prioritaskan backend complexity", "Gunakan bahasa Indonesia untuk customer").
 
@@ -186,7 +186,7 @@ Requirement Parser → Task Extractor → Task Breaker → Complexity Analyzer
 → Risk Analyzer → [Pricing Engine (application logic)] → Quotation Generator
 ```
 
-**Eksekusi bertahap**: ekstraksi → breakdown → kompleksitas → dependensi (masing-masing satu panggilan model dengan structured output), lalu tahap estimasi oleh pricing engine tanpa AI. Keluaran tiap tahap disimpan (`analysis_jobs`) sehingga tahap yang gagal diulang sendirian dan analisis yang terhenti bisa dilanjutkan. Tiap tahap wajib menjawab semua task; jawaban parsial dianggap gagal.
+**Eksekusi bertahap**: ekstraksi → breakdown → kompleksitas → dependensi (masing-masing satu panggilan model dengan structured output), lalu tahap estimasi oleh pricing engine tanpa AI. Keluaran tiap tahap disimpan (`analysis_jobs`) sehingga tahap yang gagal diulang sendirian dan analisis yang terhenti bisa dilanjutkan. Eksekusi tahap dijaga lease bertoken (pekerja yang leasenya diambil alih tidak bisa menulis hasil), dan job yang sudah digantikan analisis yang lebih baru tidak bisa dilanjutkan atau menimpa hasil baru. Tiap tahap wajib menjawab semua task; jawaban parsial dianggap gagal.
 
 ### Structured Output (wajib JSON, divalidasi Zod)
 
@@ -286,6 +286,7 @@ Tabel: `users`, `workspaces`, `workspace_members`, `pricing_profiles`, `pricing_
 Aturan integritas:
 - `quotations` immutable setelah dikirim; revisi = quotation versi baru.
 - Snapshot harga di `quotation_items` (price, currency, profile_id, profile_version).
+- Nomor versi quotation unik per estimation (`UNIQUE(estimation_id, version)`, termasuk yang soft-deleted); pembuatan bersamaan diulang dengan nomor terbaru.
 - Soft delete untuk project & quotation (audit trail).
 
 ### Integration Points
@@ -304,7 +305,7 @@ Aturan integritas:
 
 - **Isolasi tenant**: semua query ber-scope `workspace_id`; diuji dengan test khusus lintas-tenant (akses ID project tenant lain → 404).
 - **Data sensitif**: requirement customer bisa memuat info bisnis rahasia. Penanganan: TLS in transit, encryption at rest (managed Postgres), retensi data mengikuti kebijakan user (fitur delete permanen project).
-- **AI provider (BYOK)**: user memilih provider dan memakai API key miliknya sendiri. Dokumentasikan bahwa data requirement dikirim ke provider pilihan; OpenAI API tier tidak digunakan untuk training (kebijakan API). Opsi Ollama/local untuk data yang tidak boleh keluar. API key terenkripsi at-rest, write-only dari sisi UI, dan hanya didekripsi di server saat memanggil model. Mengganti `AUTH_SECRET` membuat key tersimpan tidak terbaca — user mengisi ulang di Settings. Base URL buatan user divalidasi untuk mencegah SSRF ke endpoint metadata cloud.
+- **AI provider (BYOK)**: user memilih provider dan memakai API key miliknya sendiri. Dokumentasikan bahwa data requirement dikirim ke provider pilihan; OpenAI API tier tidak digunakan untuk training (kebijakan API). Opsi Ollama/local untuk data yang tidak boleh keluar. API key terenkripsi at-rest, write-only dari sisi UI, dan hanya didekripsi di server saat memanggil model. Mengganti `AUTH_SECRET` membuat key tersimpan tidak terbaca — user mengisi ulang di Settings. Base URL buatan user dibatasi ke tujuan publik (validasi saat simpan + guard saat koneksi, redirect ditolak) untuk mencegah SSRF ke jaringan internal/metadata cloud.
 - **Auth**: session cookie httpOnly + CSRF protection bawaan Auth.js; **tanpa rate limit/kuota analisis di sisi aplikasi** karena memakai API key milik user (BYOK) — batas pemakaian mengikuti akun provider user. Kegagalan karena limit provider ditampilkan apa adanya dan tahap yang gagal bisa diulang.
 - **RBAC**: MVP = 1 owner per workspace. Role member/viewer masuk Phase 3.
 - **Compliance**: PDP (UU PDP Indonesia) — consent pengumpulan data, right to delete. Audit log akses quotation.

@@ -313,6 +313,9 @@ model Quotation {
   estimation Estimation      @relation(fields: [estimationId], references: [id])
   items      QuotationItem[]
 
+  /// Versi unik per estimation (termasuk yang soft-deleted, jadi nomor versi tidak pernah dipakai ulang).
+  @@unique([estimationId, version])
+
   @@map("quotations")
 }
 
@@ -390,6 +393,9 @@ model AnalysisJob {
   error        String?
   /// Lease singkat agar dua permintaan bersamaan tidak menjalankan tahap yang sama dua kali.
   lockedUntil  DateTime?
+  /// Token milik pemegang lease saat ini. Semua penulisan hasil wajib mencocokkannya (fencing) agar pekerja
+  /// basi yang lease-nya sudah diambil alih tidak menimpa hasil pekerja yang lebih baru.
+  claimToken   String?
   createdAt    DateTime          @default(now())
   updatedAt    DateTime          @updatedAt
 

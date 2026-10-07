@@ -1,3 +1,4 @@
+import { privateEndpointsAllowed } from "@/lib/ai/guarded-fetch";
 import { describeIncompleteConfig, getAiConfigView } from "@/lib/ai/provider";
 import { prisma } from "@/lib/prisma";
 import { requireScope } from "@/lib/workspace";
@@ -24,7 +25,7 @@ export default async function SettingsPage() {
         </p>
       </header>
 
-      <SettingsForms ai={ai} aiProblem={describeIncompleteConfig(ai)} branding={workspace} />
+      <SettingsForms ai={ai} aiProblem={describeIncompleteConfig(ai)} allowPrivate={privateEndpointsAllowed()} branding={workspace} />
     </div>
   );
 }

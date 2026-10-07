@@ -57,10 +57,13 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 export function SettingsForms({
   ai,
   aiProblem,
+  allowPrivate,
   branding,
 }: {
   ai: AiConfigView | null;
   aiProblem: string | null;
+  /** Server mengizinkan endpoint localhost/jaringan privat (self-host). */
+  allowPrivate: boolean;
   branding: {
     companyName: string | null;
     address: string | null;
@@ -116,7 +119,7 @@ export function SettingsForms({
               if (!v) return;
               setProvider(v as AiProvider);
               // Ollama butuh Base URL lokal; isi contohnya agar tidak ada tebakan tersembunyi di server.
-              if (v === "ollama" && !baseUrl) setBaseUrl(OLLAMA_DEFAULT_BASE_URL);
+              if (v === "ollama" && !baseUrl && allowPrivate) setBaseUrl(OLLAMA_DEFAULT_BASE_URL);
             }}
           >
             <SelectTrigger className="bg-card h-9 w-full text-[13px]">
@@ -132,10 +135,17 @@ export function SettingsForms({
           </Select>
         </Field>
 
+        {!allowPrivate && (
+          <p className="text-muted-foreground text-xs">
+            Server ini memblokir endpoint localhost/jaringan privat. Ollama hanya bisa dipakai jika dapat dijangkau lewat
+            alamat publik; Ollama di komputer sendiri tersedia di instalasi self-host.
+          </p>
+        )}
+
         <Field label={isOllama ? "Base URL Ollama" : "Base URL (kosongkan untuk OpenAI resmi)"}>
           <Input
             value={baseUrl}
-            placeholder={isOllama ? OLLAMA_DEFAULT_BASE_URL : "https://api.openai.com/v1"}
+            placeholder={isOllama ? (allowPrivate ? OLLAMA_DEFAULT_BASE_URL : "https://ollama.contoh.com/v1") : "https://api.openai.com/v1"}
             onChange={(e) => setBaseUrl(e.target.value)}
             className="h-9 text-[13px]"
           />
