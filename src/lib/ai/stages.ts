@@ -62,10 +62,33 @@ export function assertCovers(stage: string, items: { index: number }[], count: n
   }
 }
 
+/**
+ * Sebagian model menjawab dalam urutan yang benar tapi lupa menuliskan `index`, dan seluruh tahap
+ * gugur di validasi. Nomor yang hilang diisi dari posisi array — HANYA bila jumlah item persis sama
+ * dengan jumlah task. Kalau model menjawab sebagian, menebak urutan akan memasangkan jawaban ke task
+ * yang salah, jadi dibiarkan gagal di `assertCovers`.
+ */
+export function fillMissingIndexes(output: unknown, count: number): unknown {
+  if (!output || typeof output !== "object") return output;
+
+  const items = (output as { items?: unknown }).items;
+  if (!Array.isArray(items) || items.length !== count) return output;
+
+  return {
+    ...output,
+    items: items.map((item, position) =>
+      item && typeof item === "object" && (item as { index?: unknown }).index === undefined
+        ? { ...item, index: position }
+        : item,
+    ),
+  };
+}
+
 /** Validasi hasil tahap terhadap konteks tahap sebelumnya (jumlah task). */
 export function validateStageOutput(stage: AiStageKey, output: unknown, data: StageData): unknown {
-  const parsed = STAGE_SCHEMAS[stage].parse(output);
   const count = data.extract?.tasks.length ?? 0;
+  const patched = stage === "extract" ? output : fillMissingIndexes(output, count);
+  const parsed = STAGE_SCHEMAS[stage].parse(patched);
 
   if (stage === "breakdown") assertCovers(stage, (parsed as BreakdownOutput).items, count);
   if (stage === "complexity") assertCovers(stage, (parsed as ComplexityOutput).items, count);

@@ -62,6 +62,10 @@ export type Analysis = z.infer<typeof analysisSchema>;
 
 /* ---------- Skema per tahap pipeline (§2 AI Analysis) ---------- */
 
+/**
+ * Tetap wajib di sini. Sebagian model menjawab urut tapi lupa menulis nomornya; kasus itu
+ * ditambal `fillMissingIndexes()` pada data mentah sebelum validasi, bukan dengan melonggarkan skema.
+ */
 const indexSchema = z.number().int().nonnegative().describe("Nomor task persis seperti pada daftar");
 
 export const extractStageSchema = z.object({

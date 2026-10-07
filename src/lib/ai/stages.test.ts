@@ -57,6 +57,37 @@ describe("validateStageOutput", () => {
   it("menerima jawaban lengkap", () => {
     expect(() => validateStageOutput("complexity", data.complexity, data)).not.toThrow();
   });
+
+  it("mengisi index yang tidak ditulis model, selama jumlahnya pas", () => {
+    const tanpaIndex = {
+      items: [
+        { breakdown: ["a"], questions: [] },
+        { breakdown: ["b"], questions: [] },
+      ],
+    };
+    const hasil = validateStageOutput("breakdown", tanpaIndex, data) as {
+      items: { index: number }[];
+    };
+    expect(hasil.items.map((item) => item.index)).toEqual([0, 1]);
+  });
+
+  it("TIDAK menebak urutan saat jawabannya kurang — menebak akan salah pasang", () => {
+    const kurang = { items: [{ breakdown: ["a"], questions: [] }] };
+    expect(() => validateStageOutput("breakdown", kurang, data)).toThrow();
+  });
+
+  it("tidak menimpa index yang sudah ditulis model", () => {
+    const terbalik = {
+      items: [
+        { index: 1, breakdown: ["b"], questions: [] },
+        { index: 0, breakdown: ["a"], questions: [] },
+      ],
+    };
+    const hasil = validateStageOutput("breakdown", terbalik, data) as {
+      items: { index: number }[];
+    };
+    expect(hasil.items.map((item) => item.index)).toEqual([1, 0]);
+  });
 });
 
 describe("taskLines", () => {
