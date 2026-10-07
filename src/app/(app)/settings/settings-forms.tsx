@@ -35,7 +35,7 @@ function useSave() {
 
 function Section({ title, hint, children }: { title: string; hint: string; children: React.ReactNode }) {
   return (
-    <section className="bg-card max-w-2xl space-y-4 rounded-[10px] border p-4 lg:p-5">
+    <section className="bg-card max-w-2xl space-y-4 rounded-[10px] border p-4 xl:max-w-none lg:p-5">
       <div>
         <h2 className="text-[15px] font-semibold">{title}</h2>
         <p className="text-muted-foreground text-xs">{hint}</p>
@@ -119,7 +119,8 @@ export function SettingsForms({
   };
 
   return (
-    <>
+    // Dua kolom mulai xl: di bawah itu form sempit lebih enak dibaca daripada melebar penuh.
+    <div className="grid items-start gap-5 xl:grid-cols-2">
       <Section
         title="Provider AI"
         hint="API key milik Anda sendiri (BYOK). Disimpan terenkripsi di database dan tidak pernah ditampilkan kembali; biaya pemakaian ditagih langsung oleh provider Anda."
@@ -334,6 +335,6 @@ export function SettingsForms({
           Simpan identitas
         </Button>
       </Section>
-    </>
+    </div>
   );
 }

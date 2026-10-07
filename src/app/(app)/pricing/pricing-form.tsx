@@ -41,7 +41,7 @@ export function PricingForm({ initial }: { initial: PricingInput }) {
     });
 
   return (
-    <section className="bg-card max-w-md space-y-4 rounded-[10px] border p-4 lg:p-5">
+    <section className="bg-card space-y-4 rounded-[10px] border p-4 lg:p-5">
       {ROWS.map(({ key, label }) => (
         <div key={key} className="space-y-1.5">
           <Label className="text-xs">{label} (Rp)</Label>
