@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 
 import { AnalysisError, persistAnalysis } from "./analyze";
 import { runAiStage } from "./runner";
-import { getAiSettings } from "./provider";
+import { requireAiSettings } from "./provider";
 import { STAGES, STAGE_COUNT, assembleAnalysis, type StageData } from "./stages";
 
 /**
@@ -104,7 +104,7 @@ export async function advanceJob(jobId: string, workspaceId: string): Promise<Ad
       return { state: "done", taskCount };
     }
 
-    const settings = await getAiSettings(workspaceId);
+    const settings = await requireAiSettings(workspaceId);
     const output = await runAiStage(stage.key, job.estimation.requirement, data, settings);
 
     await prisma.analysisJob.update({

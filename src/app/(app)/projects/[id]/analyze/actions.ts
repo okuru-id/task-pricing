@@ -3,11 +3,12 @@
 import { revalidatePath } from "next/cache";
 
 import { AnalysisError } from "@/lib/ai/analyze";
+import { describeIncompleteConfig, getAiConfigView } from "@/lib/ai/provider";
 import { advanceJob, createAnalysisJob, type AdvanceResult } from "@/lib/ai/job";
 import { prisma } from "@/lib/prisma";
 import { requireScope } from "@/lib/workspace";
 
-export type BeginResult = { ok: true; jobId: string } | { ok: false; error: string };
+export type BeginResult = { ok: true; jobId: string } | { ok: false; error: string; code?: "config" };
 
 /** Mulai analisis baru: validasi lalu buat job. Tanpa kuota — API key milik user sendiri (BYOK), biayanya tidak ditanggung aplikasi. */
 export async function beginAnalysis(projectId: string): Promise<BeginResult> {
@@ -22,6 +23,10 @@ export async function beginAnalysis(projectId: string): Promise<BeginResult> {
   if (estimation.requirement.trim().length < 50) {
     return { ok: false, error: "Requirement terlalu pendek untuk dianalisis" };
   }
+
+  // BYOK: tanpa konfigurasi lengkap di Settings analisis tidak dimulai — tidak ada fallback ke environment.
+  const problem = describeIncompleteConfig(await getAiConfigView(workspaceId));
+  if (problem) return { ok: false, error: problem, code: "config" };
 
   try {
     return { ok: true, jobId: await createAnalysisJob(estimation.id, workspaceId) };

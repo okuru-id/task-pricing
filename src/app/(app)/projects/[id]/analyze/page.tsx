@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 
 import { Breadcrumb } from "@/components/breadcrumb";
 import { getResumableJob } from "@/lib/ai/job";
+import { describeIncompleteConfig, getAiConfigView } from "@/lib/ai/provider";
 import { prisma } from "@/lib/prisma";
 import { requireScope } from "@/lib/workspace";
 
@@ -27,6 +28,7 @@ export default async function AnalyzePage({ params }: { params: Promise<{ id: st
   // Analisis yang berhenti di tengah (gagal / tab ditutup) bisa dilanjutkan dari tahap yang tertunda.
   const estimationId = project.estimations[0]?.id;
   const resumable = estimationId ? await getResumableJob(estimationId, workspaceId) : null;
+  const aiProblem = describeIncompleteConfig(await getAiConfigView(workspaceId));
 
   return (
     <div className="flex flex-col gap-5">
@@ -51,6 +53,7 @@ export default async function AnalyzePage({ params }: { params: Promise<{ id: st
 
       <AnalysisProgress
         projectId={project.id}
+        aiProblem={aiProblem}
         resume={resumable && { jobId: resumable.id, stage: resumable.stage, error: resumable.error }}
       />
     </div>

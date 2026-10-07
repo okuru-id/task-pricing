@@ -40,7 +40,7 @@ Setup lokal: Postgres jalan di Docker (`taskpricer-db`, port 5433). Jalankan `np
 - [x] Auto-retry 1x; jika tetap gagal → error jelas, **tanpa** membuat harga palsu (terverifikasi)
 - [x] Guardrails: auto-flag third-party/migrasi, Very Complex wajib range + ≥1 pertanyaan, confidence low → CLARIFICATION_REQUIRED
 - [x] UI progress 5 tahap
-- [x] UI Settings (`/settings`): provider/model/temperature/instruksi global + identitas perusahaan untuk PDF. API key tetap di `.env`
+- [x] UI Settings (`/settings`): provider, Base URL, model, temperature, instruksi global, **API key (BYOK)** + Tes koneksi, serta identitas perusahaan untuk PDF. **Konfigurasi AI hanya dari DB — tidak ada fallback ke env** (`OPENAI_*` tidak dibaca). Key dienkripsi AES-256-GCM (kunci turunan `AUTH_SECRET`), write-only di UI; Base URL divalidasi (anti-SSRF metadata). Tanpa konfigurasi lengkap analisis tidak dimulai dan user diarahkan ke Settings
 - [x] Halaman Pricing (`/pricing`): ubah harga per kompleksitas sebagai versi rule baru
 - [x] Progress per tahap yang nyata (`src/lib/ai/stages.ts`, `job.ts`): extract → breakdown → kompleksitas → dependensi (4 panggilan AI, masing-masing satu tool call terstruktur) → estimasi (mesin harga + guardrail, tanpa AI). Keluaran tiap tahap disimpan di `analysis_jobs`; tahap yang gagal diulang sendirian ("Ulangi tahap ini"), analisis yang terhenti bisa dilanjutkan setelah reload. Tiap tahap wajib menjawab SEMUA task (jawaban parsial = tahap gagal).
 - [ ] Belum diukur terhadap model sungguhan: biaya/latensi ~4× panggilan dibanding satu panggilan, dan kualitas hasil bertahap vs satu panggilan — jalankan `npm run eval` sebelum rilis (script eval kini memakai pipeline bertahap yang sama)
@@ -48,7 +48,7 @@ Setup lokal: Postgres jalan di Docker (`taskpricer-db`, port 5433). Jalankan `np
 > **Catatan provider (penting):** `@ai-sdk/openai` default memakai Responses API. Kode memakai
 > `.chat()` agar lewat `/v1/chat/completions`. Ada pula `sanitizingFetch` di `src/lib/ai/provider.ts`
 > untuk gateway yang membalas non-streaming dengan `text/event-stream` + `data: [DONE]`.
-> Diagnosa provider: `npx tsx --env-file=.env scripts/probe-ai.mts`.
+> Diagnosa provider: `npx tsx --env-file=.env scripts/probe-ai.mts --workspace=<id>` (konfigurasi dibaca dari Settings workspace). Catatan: `AUTH_SECRET` wajib stabil — jika diganti, API key tersimpan tidak terbaca dan harus diisi ulang di Settings.
 
 ### 6. Pricing Engine — SELESAI
 - [x] Terhubung ke `pricing_profiles`/`pricing_rules` per workspace, fallback ke default
@@ -98,7 +98,7 @@ Setup lokal: Postgres jalan di Docker (`taskpricer-db`, port 5433). Jalankan `np
 - [ ] Change Request workflow (flag `CHANGE_REQUEST`, bandingkan vs original scope)
 - [ ] Analytics: avg project value, win rate, estimate accuracy, complexity distribution
 - [ ] Team/organization multi-member + RBAC (role member/viewer)
-- [ ] AI provider management UI + local LLM onboarding
+- [ ] Manajemen multi-provider/fallback provider + local LLM onboarding (konfigurasi satu provider per workspace sudah ada di Settings)
 - [ ] Multi-format input (PDF/DOCX/XLSX)
 - [ ] Billing SaaS (Midtrans/Xendit/Stripe)
 

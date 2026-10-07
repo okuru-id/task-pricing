@@ -352,6 +352,12 @@ model AiConfig {
   model       String
   temperature Float    @default(0.2)
   systemPrompt String?
+  /// Base URL endpoint OpenAI-compatible / Ollama. Null = endpoint resmi OpenAI.
+  baseUrl     String?
+  /// API key milik user (BYOK), terenkripsi AES-256-GCM — lihat src/lib/crypto.ts. Tidak pernah dikirim ke klien.
+  apiKeyEnc   String?
+  /// 4 karakter terakhir key, hanya untuk ditampilkan di Settings.
+  apiKeyHint  String?
   createdAt   DateTime @default(now())
 
   workspace Workspace @relation(fields: [workspaceId], references: [id])

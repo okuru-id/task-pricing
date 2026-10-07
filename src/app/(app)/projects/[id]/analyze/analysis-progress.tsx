@@ -28,12 +28,23 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
  * Progress analisis per tahap yang NYATA: tiap tahap adalah satu panggilan server dan hasilnya disimpan.
  * Tahap yang gagal diulang sendirian (mulai dari tahap itu), bukan dari awal (§2 AI Analysis).
  */
-export function AnalysisProgress({ projectId, resume }: { projectId: string; resume: ResumeInfo | null }) {
+export function AnalysisProgress({
+  projectId,
+  resume,
+  aiProblem,
+}: {
+  projectId: string;
+  resume: ResumeInfo | null;
+  /** Alasan konfigurasi AI belum lengkap (BYOK); analisis tidak dimulai otomatis jika terisi. */
+  aiProblem: string | null;
+}) {
   const router = useRouter();
   const [completed, setCompleted] = useState(resume?.stage ?? 0);
-  const [phase, setPhase] = useState<Phase>(resume ? "ready" : "running");
-  const [error, setError] = useState<string | null>(resume?.error ?? null);
+  const [phase, setPhase] = useState<Phase>(resume ? "ready" : aiProblem ? "failed" : "running");
+  const [error, setError] = useState<string | null>(resume?.error ?? (resume ? null : aiProblem));
   const [jobId, setJobId] = useState<string | null>(resume?.jobId ?? null);
+  // Konfigurasi AI (BYOK) belum lengkap: bukan kegagalan tahap, jadi ditampilkan terpisah.
+  const [configBlocked, setConfigBlocked] = useState(Boolean(aiProblem) && !resume);
   const started = useRef(false);
   const cancelled = useRef(false);
 
@@ -94,13 +105,17 @@ export function AnalysisProgress({ projectId, resume }: { projectId: string; res
     setError(null);
     setCompleted(0);
 
+    setConfigBlocked(false);
+
     const result = await beginAnalysis(projectId).catch((cause: unknown) => ({
       ok: false as const,
       error: cause instanceof Error ? cause.message : "Analisis gagal",
+      code: undefined,
     }));
 
     if (!result.ok) {
       setError(result.error);
+      setConfigBlocked(result.code === "config");
       setPhase("failed");
       return;
     }
@@ -109,10 +124,10 @@ export function AnalysisProgress({ projectId, resume }: { projectId: string; res
   }, [projectId, drive]);
 
   useEffect(() => {
-    if (resume || started.current) return; // mount ganda (StrictMode) tidak boleh memicu 2 analisis
+    if (resume || aiProblem || started.current) return; // mount ganda (StrictMode) tidak boleh memicu 2 analisis
     started.current = true;
     void begin();
-  }, [resume, begin]);
+  }, [resume, aiProblem, begin]);
 
   const percent = Math.round((completed / STAGE_COUNT) * 100);
   const running = phase === "running";
@@ -138,7 +153,7 @@ export function AnalysisProgress({ projectId, resume }: { projectId: string; res
         {STAGES.map((item, index) => {
           const isDone = index < completed;
           const isCurrent = running && index === completed;
-          const isFailed = phase === "failed" && index === completed;
+          const isFailed = phase === "failed" && !configBlocked && index === completed;
 
           return (
             <div
@@ -202,7 +217,25 @@ export function AnalysisProgress({ projectId, resume }: { projectId: string; res
         </div>
       )}
 
-      {phase === "failed" && (
+      {phase === "failed" && configBlocked && (
+        <div className="bg-warning-soft space-y-3 rounded-lg p-4">
+          <p className="text-warning-strong text-[13px] font-semibold">Konfigurasi AI belum lengkap</p>
+          <p className="text-warning-strong text-xs">
+            {error} Aplikasi ini memakai API key milik Anda sendiri, jadi provider, model, dan key harus diisi di Settings
+            sebelum analisis bisa berjalan.
+          </p>
+          <div className="flex gap-2">
+            <Button size="sm" onClick={() => router.push("/settings")}>
+              Buka Settings
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => void begin()}>
+              Saya sudah mengisinya
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {phase === "failed" && !configBlocked && (
         <div className="bg-danger-subtle border-danger-border space-y-3 rounded-lg border p-4">
           <div className="flex items-start gap-2.5">
             <TriangleAlert className="text-danger mt-0.5 size-4 shrink-0" />

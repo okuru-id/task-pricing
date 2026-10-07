@@ -11,9 +11,9 @@ Golden set ada di `evals/golden/*.json` (array `GoldenCase`, lihat `src/lib/eval
 ## Menjalankan
 
 ```bash
-# butuh OPENAI_API_KEY (+ OPENAI_BASE_URL / OPENAI_MODEL jika perlu)
-npm run eval                    # skor + cek ambang + bandingkan dengan baseline
-npm run eval -- --update-baseline   # simpan skor sebagai baseline setelah ganti model/prompt yang disetujui
+# konfigurasi AI dibaca dari Settings workspace (DB), bukan env: sebutkan workspace-nya
+npm run eval -- --workspace=<id>                    # skor + cek ambang + bandingkan dengan baseline
+npm run eval -- --workspace=<id> --update-baseline   # simpan skor sebagai baseline setelah ganti model/prompt yang disetujui
 ```
 
 Exit code 1 jika ada ambang gagal atau regresi > 5 poin dari `evals/baseline.json`.
