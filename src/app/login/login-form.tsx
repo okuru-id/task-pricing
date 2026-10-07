@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
+import { FlaskConical } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,7 +9,12 @@ import { Label } from "@/components/ui/label";
 
 import { login, register, type AuthState } from "./actions";
 
-export function LoginForm() {
+export interface DevCredentials {
+  email: string;
+  password: string;
+}
+
+export function LoginForm({ devCredentials }: { devCredentials?: DevCredentials }) {
   const [mode, setMode] = useState<"login" | "register">("login");
   const action = mode === "login" ? login : register;
   const [state, formAction, pending] = useActionState<AuthState, FormData>(action, undefined);
@@ -33,12 +39,14 @@ export function LoginForm() {
           Email
         </Label>
         <Input
+          key={`email-${mode}`}
           id="email"
           name="email"
           type="email"
           required
           autoComplete="email"
           placeholder="budi@email.com"
+          defaultValue={isLogin ? devCredentials?.email : undefined}
           className="h-10"
         />
       </div>
@@ -48,6 +56,7 @@ export function LoginForm() {
           Password
         </Label>
         <Input
+          key={`password-${mode}`}
           id="password"
           name="password"
           type="password"
@@ -55,6 +64,7 @@ export function LoginForm() {
           minLength={8}
           autoComplete={isLogin ? "current-password" : "new-password"}
           placeholder="Minimal 8 karakter"
+          defaultValue={isLogin ? devCredentials?.password : undefined}
           className="h-10"
         />
       </div>
@@ -68,6 +78,18 @@ export function LoginForm() {
       <Button type="submit" className="h-10 w-full" disabled={pending}>
         {pending ? "Memproses…" : isLogin ? "Masuk" : "Buat akun"}
       </Button>
+
+      {devCredentials && (
+        <div className="bg-warning-soft flex items-start gap-2.5 rounded-lg p-3">
+          <FlaskConical className="text-warning mt-px size-4 shrink-0" />
+          <div className="text-warning-strong space-y-1 text-xs">
+            <p className="font-semibold">Akun development</p>
+            <p className="font-mono break-all">{devCredentials.email}</p>
+            <p className="font-mono break-all">{devCredentials.password}</p>
+            <p>Sudah terisi otomatis — tinggal klik Masuk.</p>
+          </div>
+        </div>
+      )}
 
       <p className="text-muted-foreground text-center text-[13px]">
         {isLogin ? "Belum punya akun? " : "Sudah punya akun? "}

@@ -4,7 +4,16 @@ import { Calculator, CircleCheck, ShieldCheck } from "lucide-react";
 import { auth, signIn } from "@/auth";
 import { Button } from "@/components/ui/button";
 
-import { LoginForm } from "./login-form";
+import { LoginForm, type DevCredentials } from "./login-form";
+
+/** Kredensial contoh untuk dev — tidak pernah ikut ke bundle production. */
+function devCredentials(): DevCredentials | undefined {
+  if (process.env.NODE_ENV === "production") return undefined;
+
+  const email = process.env.DEV_LOGIN_EMAIL;
+  const password = process.env.DEV_LOGIN_PASSWORD;
+  return email && password ? { email, password } : undefined;
+}
 
 const BENEFITS = [
   "Harga dihitung aplikasi, bukan AI",
@@ -50,7 +59,7 @@ export default async function LoginPage() {
 
       <main className="flex flex-1 items-center justify-center px-6">
         <div className="w-full max-w-[400px] space-y-5">
-          <LoginForm />
+          <LoginForm devCredentials={devCredentials()} />
 
           {googleEnabled && (
             <form
