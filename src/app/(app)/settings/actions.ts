@@ -5,6 +5,7 @@ import { generateText } from "ai";
 import { z } from "zod";
 
 import { OLLAMA_DEFAULT_BASE_URL, keyHint, validateBaseUrl } from "@/lib/ai/config";
+import { privateEndpointsAllowed } from "@/lib/ai/guarded-fetch";
 import { AiConfigError, requireAiSettings, resolveModel } from "@/lib/ai/provider";
 import { SecretError, encryptSecret } from "@/lib/crypto";
 import { prisma } from "@/lib/prisma";
@@ -45,11 +46,17 @@ export async function saveAiSettings(input: AiSettingsInput): Promise<ActionResu
 
   let baseUrl: string | null = null;
   if (rawBaseUrl) {
-    const checked = validateBaseUrl(rawBaseUrl);
+    const checked = validateBaseUrl(rawBaseUrl, { allowPrivate: privateEndpointsAllowed() });
     if (!checked.ok) return { ok: false, error: checked.error };
     baseUrl = checked.url;
   }
-  if (rest.provider === "ollama" && !baseUrl) baseUrl = OLLAMA_DEFAULT_BASE_URL;
+  if (rest.provider === "ollama" && !baseUrl) {
+    // Default localhost hanya masuk akal untuk self-host; di server yang memblokir jaringan privat harus alamat publik.
+    if (!privateEndpointsAllowed()) {
+      return { ok: false, error: "Base URL Ollama wajib diisi dengan alamat publik — localhost tidak diizinkan di server ini" };
+    }
+    baseUrl = OLLAMA_DEFAULT_BASE_URL;
+  }
 
   const existing = await prisma.aiConfig.findFirst({ where: { workspaceId }, orderBy: { createdAt: "desc" } });
 

@@ -40,9 +40,9 @@ Setup lokal: Postgres jalan di Docker (`taskpricer-db`, port 5433). Jalankan `np
 - [x] Auto-retry 1x; jika tetap gagal → error jelas, **tanpa** membuat harga palsu (terverifikasi)
 - [x] Guardrails: auto-flag third-party/migrasi, Very Complex wajib range + ≥1 pertanyaan, confidence low → CLARIFICATION_REQUIRED
 - [x] UI progress 5 tahap
-- [x] UI Settings (`/settings`): provider, Base URL, model, temperature, instruksi global, **API key (BYOK)** + Tes koneksi, serta identitas perusahaan untuk PDF. **Konfigurasi AI hanya dari DB — tidak ada fallback ke env** (`OPENAI_*` tidak dibaca). Key dienkripsi AES-256-GCM (kunci turunan `AUTH_SECRET`), write-only di UI; Base URL divalidasi (anti-SSRF metadata). Tanpa konfigurasi lengkap analisis tidak dimulai dan user diarahkan ke Settings
+- [x] UI Settings (`/settings`): provider, Base URL, model, temperature, instruksi global, **API key (BYOK)** + Tes koneksi, serta identitas perusahaan untuk PDF. **Konfigurasi AI hanya dari DB — tidak ada fallback ke env** (`OPENAI_*` tidak dibaca). Key dienkripsi AES-256-GCM (kunci turunan `AUTH_SECRET`), write-only di UI; Base URL dibatasi ke tujuan publik: validasi saat simpan + guard saat koneksi (cek alamat hasil DNS saat connect = anti DNS rebinding, IP literal, redirect ditolak; `src/lib/ai/guarded-fetch.ts`). Localhost/jaringan privat hanya untuk self-host lewat `AI_ALLOW_PRIVATE_ENDPOINTS=true`. Tanpa konfigurasi lengkap analisis tidak dimulai dan user diarahkan ke Settings
 - [x] Halaman Pricing (`/pricing`): ubah harga per kompleksitas sebagai versi rule baru
-- [x] Progress per tahap yang nyata (`src/lib/ai/stages.ts`, `job.ts`): extract → breakdown → kompleksitas → dependensi (4 panggilan AI, masing-masing satu tool call terstruktur) → estimasi (mesin harga + guardrail, tanpa AI). Keluaran tiap tahap disimpan di `analysis_jobs`; tahap yang gagal diulang sendirian ("Ulangi tahap ini"), analisis yang terhenti bisa dilanjutkan setelah reload. Tiap tahap wajib menjawab SEMUA task (jawaban parsial = tahap gagal).
+- [x] Progress per tahap yang nyata (`src/lib/ai/stages.ts`, `job.ts`): extract → breakdown → kompleksitas → dependensi (4 panggilan AI, masing-masing satu tool call terstruktur) → estimasi (mesin harga + guardrail, tanpa AI). Keluaran tiap tahap disimpan di `analysis_jobs`; tahap yang gagal diulang sendirian ("Ulangi tahap ini"), analisis yang terhenti bisa dilanjutkan setelah reload. Tiap tahap wajib menjawab SEMUA task (jawaban parsial = tahap gagal). Lease bertoken (fencing) mencegah pekerja basi menimpa hasil; job yang sudah digantikan job lebih baru tidak bisa dilanjutkan/menimpa.
 - [ ] Belum diukur terhadap model sungguhan: biaya/latensi ~4× panggilan dibanding satu panggilan, dan kualitas hasil bertahap vs satu panggilan — jalankan `npm run eval` sebelum rilis (script eval kini memakai pipeline bertahap yang sama)
 
 > **Catatan provider (penting):** `@ai-sdk/openai` default memakai Responses API. Kode memakai
@@ -54,7 +54,7 @@ Setup lokal: Postgres jalan di Docker (`taskpricer-db`, port 5433). Jalankan `np
 - [x] Terhubung ke `pricing_profiles`/`pricing_rules` per workspace, fallback ke default
 - [x] `VERY_COMPLEX` wajib `custom_estimate_min/max`, menolak range terbalik
 - [x] Unit test (16 test lulus)
-- [x] Snapshot harga ke `quotation_items` saat quotation dibuat
+- [x] Snapshot harga ke `quotation_items` saat quotation dibuat (nomor versi dijaga `UNIQUE(estimationId, version)`; migrasi menomori ulang duplikat lama)
 
 ### 7. Task Review UI (§2) — SELESAI
 - [x] Tabel task: nama, tipe, kompleksitas, flag, confidence, harga + baris expand

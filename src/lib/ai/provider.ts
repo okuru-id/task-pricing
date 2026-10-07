@@ -4,6 +4,7 @@ import { decryptSecret, SecretError } from "@/lib/crypto";
 import { prisma } from "@/lib/prisma";
 
 import { OLLAMA_DEFAULT_BASE_URL, type AiProvider } from "./config";
+import { outboundFetch } from "./guarded-fetch";
 
 /**
  * Konfigurasi AI sepenuhnya dari database (diisi user di Settings — BYOK). TIDAK ada fallback ke environment
@@ -125,7 +126,8 @@ function extractJsonPayload(body: string): string | null {
  * kembali menjadi JSON. Permintaan streaming sungguhan diteruskan apa adanya.
  */
 const sanitizingFetch: typeof fetch = async (input, init) => {
-  const response = await fetch(input, init);
+  // Semua panggilan keluar lewat fetch yang menolak tujuan jaringan privat (kecuali self-host eksplisit).
+  const response = await outboundFetch()(input, init);
 
   const wantsStream = typeof init?.body === "string" && /"stream"\s*:\s*true/.test(init.body);
   if (wantsStream || !response.body) return response;

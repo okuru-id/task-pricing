@@ -1,4 +1,4 @@
-import type { Complexity, TaskFlag, TaskType } from "@prisma/client";
+import type { Complexity, Prisma, TaskFlag, TaskType } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
 import { syncMilestonePrices } from "@/lib/data/milestones";
@@ -99,7 +99,13 @@ function resolvePrice(task: AiTask, rules: PriceRules): number {
 }
 
 /** Simpan hasil analisis ke estimation (menimpa task lama). Dipanggil di tahap akhir pipeline. */
-export async function persistAnalysis(estimationId: string, workspaceId: string, analysis: Analysis) {
+export async function persistAnalysis(
+  estimationId: string,
+  workspaceId: string,
+  analysis: Analysis,
+  /** Dijalankan paling awal di dalam transaksi; melempar error = seluruh penyimpanan dibatalkan (rollback). */
+  beforeCommit?: (tx: Prisma.TransactionClient) => Promise<void>,
+) {
   const estimation = await prisma.estimation.findFirst({
     where: { id: estimationId, project: { workspaceId, deletedAt: null } },
     select: { id: true, projectId: true },
@@ -111,6 +117,8 @@ export async function persistAnalysis(estimationId: string, workspaceId: string,
   const tasks = analysis.tasks.map(applyGuardrails);
 
   await prisma.$transaction(async (tx) => {
+    await beforeCommit?.(tx);
+
     // Analisis ulang mengganti hasil AI sebelumnya; edit user ikut tergantikan.
     const previous = await tx.estimationTask.findMany({
       where: { estimationId },

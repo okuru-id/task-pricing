@@ -1,5 +1,6 @@
 "use server";
 
+import { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 
 import { tasksMissingQuestions } from "@/lib/clarification";
@@ -9,6 +10,8 @@ import { QUOTABLE_FROM } from "@/lib/project-status";
 import { PricingError } from "@/lib/pricing-engine";
 import { buildSnapshot } from "@/lib/quotation";
 import { requireScope } from "@/lib/workspace";
+
+const MAX_VERSION_ATTEMPTS = 5;
 
 export type CreateQuotationResult = { ok: true } | { ok: false; error: string };
 
@@ -75,37 +78,47 @@ export async function createQuotation(projectId: string): Promise<CreateQuotatio
     throw error;
   }
 
-  await prisma.$transaction(async (tx) => {
-    const latest = await tx.quotation.aggregate({
-      where: { estimationId: estimation.id },
-      _max: { version: true },
-    });
+  // Nomor versi diambil dari max+1 lalu dijaga constraint unik (estimationId, version). Dua permintaan
+  // bersamaan bisa menghitung versi yang sama — yang kalah (P2002) mengulang dengan nomor terbaru.
+  for (let attempt = 1; ; attempt++) {
+    try {
+      await prisma.$transaction(async (tx) => {
+        const latest = await tx.quotation.aggregate({
+          where: { estimationId: estimation.id },
+          _max: { version: true },
+        });
 
-    await tx.quotation.create({
-      data: {
-        estimationId: estimation.id,
-        version: (latest._max.version ?? 0) + 1,
-        total: snapshot.total,
-        totalMax: snapshot.totalMax,
-        assumptions: estimation.assumptions,
-        exclusions: snapshot.exclusions,
-        items: {
-          create: snapshot.items.map((item) => ({
-            ...item,
-            currency: "IDR",
-            pricingProfileId: profile?.id ?? null,
-            profileVersion: profile?.version ?? null,
-          })),
-        },
-      },
-    });
+        await tx.quotation.create({
+          data: {
+            estimationId: estimation.id,
+            version: (latest._max.version ?? 0) + 1,
+            total: snapshot.total,
+            totalMax: snapshot.totalMax,
+            assumptions: estimation.assumptions,
+            exclusions: snapshot.exclusions,
+            items: {
+              create: snapshot.items.map((item) => ({
+                ...item,
+                currency: "IDR",
+                pricingProfileId: profile?.id ?? null,
+                profileVersion: profile?.version ?? null,
+              })),
+            },
+          },
+        });
 
-    // Accepted/Completed/Archived tidak diturunkan oleh versi quotation baru.
-    await tx.project.updateMany({
-      where: { id: projectId, status: { in: QUOTABLE_FROM } },
-      data: { status: "QUOTED" },
-    });
-  });
+        // Accepted/Completed/Archived tidak diturunkan oleh versi quotation baru.
+        await tx.project.updateMany({
+          where: { id: projectId, status: { in: QUOTABLE_FROM } },
+          data: { status: "QUOTED" },
+        });
+      });
+      break;
+    } catch (error) {
+      const conflict = error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
+      if (!conflict || attempt >= MAX_VERSION_ATTEMPTS) throw error;
+    }
+  }
 
   revalidatePath(`/projects/${projectId}/quotation`);
   return { ok: true };
