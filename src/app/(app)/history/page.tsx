@@ -36,14 +36,14 @@ export default async function HistoryPage({
 
   const pill = (active: boolean) =>
     cn(
-      "rounded-full px-2.5 py-1.5 text-xs font-medium",
+      "rounded-full px-3 py-2 text-xs font-medium lg:px-2.5 lg:py-1.5",
       active ? "bg-foreground text-background" : "bg-card hover:border-border-strong border",
     );
 
   return (
     <div className="flex flex-col gap-5">
       <header className="space-y-1">
-        <h1 className="text-[26px] leading-tight font-bold">History</h1>
+        <h1 className="text-[22px] leading-tight font-bold lg:text-[26px]">History</h1>
         <p className="text-muted-foreground text-[13px]">
           Seluruh project dan versi penawarannya, termasuk yang diarsipkan atau dihapus.
         </p>

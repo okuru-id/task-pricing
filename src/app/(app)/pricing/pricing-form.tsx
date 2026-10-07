@@ -41,7 +41,7 @@ export function PricingForm({ initial }: { initial: PricingInput }) {
     });
 
   return (
-    <section className="bg-card max-w-md space-y-4 rounded-[10px] border p-5">
+    <section className="bg-card max-w-md space-y-4 rounded-[10px] border p-4 lg:p-5">
       {ROWS.map(({ key, label }) => (
         <div key={key} className="space-y-1.5">
           <Label className="text-xs">{label} (Rp)</Label>
@@ -50,14 +50,14 @@ export function PricingForm({ initial }: { initial: PricingInput }) {
             min={1}
             value={values[key]}
             onChange={(e) => setValues({ ...values, [key]: e.target.value })}
-            className="h-9 text-[13px]"
+            className="h-10 text-[13px] lg:h-9"
           />
         </div>
       ))}
       <p className="text-muted-foreground text-xs">
         Very Complex tidak punya harga tetap — rentang diisi per tugas saat review.
       </p>
-      <Button size="sm" disabled={pending} onClick={save}>
+      <Button size="sm" className="max-lg:h-10 max-lg:w-full" disabled={pending} onClick={save}>
         Simpan harga
       </Button>
     </section>

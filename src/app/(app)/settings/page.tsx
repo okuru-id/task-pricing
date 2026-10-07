@@ -19,7 +19,7 @@ export default async function SettingsPage() {
   return (
     <div className="flex flex-col gap-5">
       <header className="space-y-1">
-        <h1 className="text-[26px] leading-tight font-bold">Settings</h1>
+        <h1 className="text-[22px] leading-tight font-bold lg:text-[26px]">Settings</h1>
         <p className="text-muted-foreground text-[13px]">
           Provider AI (API key milik Anda sendiri) untuk analisis requirement dan identitas yang tampil di PDF penawaran.
         </p>

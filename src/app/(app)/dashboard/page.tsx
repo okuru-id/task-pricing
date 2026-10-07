@@ -411,7 +411,7 @@ function FilterPill({
     <Link
       href={href}
       className={cn(
-        "flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-xs font-medium",
+        "flex items-center gap-1.5 rounded-full px-3 py-2 text-xs font-medium lg:px-2.5 lg:py-1.5",
         active
           ? "bg-foreground text-background"
           : "bg-card hover:border-border-strong border",

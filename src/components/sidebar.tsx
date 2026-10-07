@@ -34,13 +34,16 @@ export function Sidebar({
         navigasi pindah ke tab bar bawah, dan tombol New Estimation jadi tombol melayang
         agar aksi utama tetap sejangkauan ibu jari.
       */}
-      <Link
-        href="/estimations/new"
-        title="New Estimation"
-        className="bg-primary text-primary-foreground fixed right-4 bottom-[86px] z-40 flex size-12 items-center justify-center rounded-full shadow-lg lg:hidden"
-      >
-        <Plus className="size-5" />
-      </Link>
+      {/* Hanya di halaman daftar: di halaman form tombol ini menutupi input. */}
+      {["/dashboard", "/history"].includes(pathname) && (
+        <Link
+          href="/estimations/new"
+          title="New Estimation"
+          className="bg-primary text-primary-foreground fixed right-4 bottom-[86px] z-40 flex size-12 items-center justify-center rounded-full shadow-lg lg:hidden"
+        >
+          <Plus className="size-5" />
+        </Link>
+      )}
 
       <nav className="bg-sidebar fixed inset-x-0 bottom-0 z-40 flex gap-1 border-t px-4 pt-2 pb-[max(1rem,env(safe-area-inset-bottom))] lg:hidden">
         {NAV.map(({ href, label, icon: Icon }) => (

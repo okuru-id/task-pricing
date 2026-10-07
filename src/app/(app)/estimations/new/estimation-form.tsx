@@ -145,7 +145,8 @@ export function EstimationForm() {
           <span>· {requirement.length} karakter</span>
         </p>
 
-        <div className="flex gap-2.5">
+        {/* Tombol ukuran sm hanya 28px — terlalu kecil untuk disentuh di HP. */}
+        <div className="flex w-full gap-2.5 sm:w-auto [&>button]:max-lg:h-10 [&>button]:max-lg:flex-1">
           <Button variant="outline" size="sm" onClick={handleSaveDraft} disabled={pending}>
             Simpan draft
           </Button>

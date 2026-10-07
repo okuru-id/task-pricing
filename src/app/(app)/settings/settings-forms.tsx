@@ -35,7 +35,7 @@ function useSave() {
 
 function Section({ title, hint, children }: { title: string; hint: string; children: React.ReactNode }) {
   return (
-    <section className="bg-card max-w-2xl space-y-4 rounded-[10px] border p-5">
+    <section className="bg-card max-w-2xl space-y-4 rounded-[10px] border p-4 lg:p-5">
       <div>
         <h2 className="text-[15px] font-semibold">{title}</h2>
         <p className="text-muted-foreground text-xs">{hint}</p>
@@ -141,7 +141,7 @@ export function SettingsForms({
               if (v === "ollama" && !baseUrl && allowPrivate) setBaseUrl(OLLAMA_DEFAULT_BASE_URL);
             }}
           >
-            <SelectTrigger className="bg-card h-9 w-full text-[13px]">
+            <SelectTrigger className="bg-card w-full text-[13px] data-[size=default]:h-10 lg:data-[size=default]:h-9">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -166,13 +166,14 @@ export function SettingsForms({
             value={baseUrl}
             placeholder={isOllama ? (allowPrivate ? OLLAMA_DEFAULT_BASE_URL : "https://ollama.contoh.com/v1") : "https://api.openai.com/v1"}
             onChange={(e) => setBaseUrl(e.target.value)}
-            className="h-9 text-[13px]"
+            className="h-10 text-[13px] lg:h-9"
           />
         </Field>
 
         {!isOllama && (
           <Field label="API key">
-            <div className="flex gap-2">
+            {/* Di mobile tombol turun ke bawah: berdampingan menyisakan input ~200px. */}
+            <div className="flex flex-col gap-2 sm:flex-row">
               <Input
                 type="password"
                 autoComplete="off"
@@ -182,14 +183,15 @@ export function SettingsForms({
                   ai?.hasKey && !clearKey ? `Tersimpan (…${ai.keyHint ?? "****"}) — kosongkan untuk mempertahankan` : "sk-…"
                 }
                 onChange={(e) => setApiKey(e.target.value)}
-                className="h-9 flex-1 text-[13px]"
+                /* flex-1 di arah kolom membuat basis 0 → input gepeng 26px; batasi ke baris. */
+                className="h-10 w-full text-[13px] sm:flex-1 lg:h-9"
               />
               {ai?.hasKey && (
                 <Button
                   type="button"
                   variant={clearKey ? "default" : "outline"}
                   size="sm"
-                  className="h-9"
+                  className="h-10 lg:h-9"
                   onClick={() => {
                     setClearKey(!clearKey);
                     setApiKey("");
@@ -211,7 +213,7 @@ export function SettingsForms({
                   value={model}
                   onValueChange={(value) => setModel(value ?? "")}
                 >
-                  <SelectTrigger className="h-9 w-full text-[13px]">
+                  <SelectTrigger className="w-full text-[13px] data-[size=default]:h-10 lg:data-[size=default]:h-9">
                     <SelectValue placeholder="Pilih model" />
                   </SelectTrigger>
                   <SelectContent>
@@ -227,16 +229,16 @@ export function SettingsForms({
                   value={model}
                   placeholder="mis. gpt-4o-mini atau llama3.1"
                   onChange={(e) => setModel(e.target.value)}
-                  className="h-9 text-[13px]"
+                  className="h-10 text-[13px] lg:h-9"
                 />
               )}
 
-              <div className="flex items-center gap-3 text-xs">
+              <div className="flex items-center gap-1 text-xs">
                 <button
                   type="button"
                   onClick={loadModels}
                   disabled={loadingModels}
-                  className="text-primary font-medium hover:underline disabled:opacity-60"
+                  className="text-primary font-medium hover:underline disabled:opacity-60 max-lg:py-2.5"
                 >
                   {loadingModels
                     ? "Memuat…"
@@ -248,7 +250,7 @@ export function SettingsForms({
                   <button
                     type="button"
                     onClick={() => setModels([])}
-                    className="text-muted-foreground hover:underline"
+                    className="text-muted-foreground hover:underline max-lg:px-2 max-lg:py-2"
                   >
                     Ketik manual
                   </button>
@@ -264,7 +266,7 @@ export function SettingsForms({
               max={2}
               value={temperature}
               onChange={(e) => setTemperature(e.target.value)}
-              className="h-9 text-[13px]"
+              className="h-10 text-[13px] lg:h-9"
             />
           </Field>
         </div>
@@ -275,7 +277,8 @@ export function SettingsForms({
             className="min-h-24 text-[13px]"
           />
         </Field>
-        <div className="flex gap-2">
+        {/* Target sentuh mobile: tombol ukuran sm hanya 28px, terlalu kecil untuk jari. */}
+        <div className="flex flex-wrap gap-2 [&>button]:max-lg:h-10 [&>button]:max-lg:flex-1">
           <Button
             size="sm"
             disabled={pending}
@@ -308,13 +311,13 @@ export function SettingsForms({
 
       <Section title="Identitas perusahaan" hint="Tampil di header, pembayaran, dan syarat pada PDF penawaran.">
         <Field label="Nama perusahaan / freelancer">
-          <Input value={brand.companyName} onChange={(e) => setBrand({ ...brand, companyName: e.target.value })} className="h-9 text-[13px]" />
+          <Input value={brand.companyName} onChange={(e) => setBrand({ ...brand, companyName: e.target.value })} className="h-10 text-[13px] lg:h-9" />
         </Field>
         <Field label="Alamat">
-          <Input value={brand.address} onChange={(e) => setBrand({ ...brand, address: e.target.value })} className="h-9 text-[13px]" />
+          <Input value={brand.address} onChange={(e) => setBrand({ ...brand, address: e.target.value })} className="h-10 text-[13px] lg:h-9" />
         </Field>
         <Field label="Kontak">
-          <Input value={brand.contact} onChange={(e) => setBrand({ ...brand, contact: e.target.value })} className="h-9 text-[13px]" />
+          <Input value={brand.contact} onChange={(e) => setBrand({ ...brand, contact: e.target.value })} className="h-10 text-[13px] lg:h-9" />
         </Field>
         <Field label="Info pembayaran (bank, no. rekening)">
           <Textarea value={brand.bankInfo} onChange={(e) => setBrand({ ...brand, bankInfo: e.target.value })} className="min-h-16 text-[13px]" />
@@ -322,7 +325,12 @@ export function SettingsForms({
         <Field label="Syarat & ketentuan">
           <Textarea value={brand.terms} onChange={(e) => setBrand({ ...brand, terms: e.target.value })} className="min-h-24 text-[13px]" />
         </Field>
-        <Button size="sm" disabled={pending} onClick={() => run(() => saveBranding(brand), "Identitas disimpan")}>
+        <Button
+          size="sm"
+          className="max-lg:h-10 max-lg:w-full"
+          disabled={pending}
+          onClick={() => run(() => saveBranding(brand), "Identitas disimpan")}
+        >
           Simpan identitas
         </Button>
       </Section>

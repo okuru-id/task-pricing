@@ -10,7 +10,7 @@ export default async function PricingPage() {
   return (
     <div className="flex flex-col gap-5">
       <header className="space-y-1">
-        <h1 className="text-[26px] leading-tight font-bold">Pricing</h1>
+        <h1 className="text-[22px] leading-tight font-bold lg:text-[26px]">Pricing</h1>
         <p className="text-muted-foreground text-[13px]">
           Harga per kompleksitas · versi {ref?.version ?? 1}. Mengubah harga hanya berlaku untuk
           penawaran berikutnya; penawaran lama tetap memakai harga saat dibuat.
