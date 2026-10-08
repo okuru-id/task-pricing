@@ -1,13 +1,13 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowDown, ArrowUp, Check, Pencil, Plus, Sparkles, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { ComplexityBadge } from "@/components/task-badges";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { StepNav } from "@/components/step-nav";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { BoardTask } from "@/lib/data/milestones";
@@ -221,17 +221,12 @@ export function MilestoneBoard({
         </section>
       )}
 
-      <div className="flex justify-between">
-        <Link
-          href={`/projects/${projectId}`}
-          className="bg-card hover:bg-muted flex h-8 items-center rounded-md border px-3 text-[13px] font-medium"
-        >
-          Kembali ke Review Task
-        </Link>
-        <Link href={`/projects/${projectId}/clarification`} className={buttonVariants()}>
-          Lanjut ke Klarifikasi
-        </Link>
-      </div>
+      <StepNav
+        backHref={`/projects/${projectId}`}
+        backLabel="Kembali ke Review Task"
+        nextHref={`/projects/${projectId}/clarification`}
+        nextLabel="Lanjut ke Klarifikasi"
+      />
     </div>
   );
 }

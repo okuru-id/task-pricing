@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { Breadcrumb } from "@/components/breadcrumb";
 import { Stepper } from "@/components/stepper";
+import { StepNav } from "@/components/step-nav";
 import { getLatestEstimation } from "@/lib/data/estimations";
 import { getPriceRules } from "@/lib/data/pricing";
 import { requireScope } from "@/lib/workspace";
@@ -24,7 +25,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
         items={[{ label: "Dashboard", href: "/dashboard" }, { label: project.name }]}
       />
 
-      <Stepper current="Review Task" />
+      <Stepper current="Review Task" projectId={project.id} />
 
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div className="space-y-1">
@@ -60,6 +61,19 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
       </header>
 
       <TaskReview projectId={project.id} tasks={estimation.tasks} rules={rules} />
+
+      <StepNav
+        backHref={`/projects/${project.id}/requirement`}
+        backLabel="Kembali ke Input"
+        nextHref={`/projects/${project.id}/milestone`}
+        nextLabel="Lanjut ke Milestone"
+        nextDisabled={
+          estimation.tasks.length === 0 ||
+          estimation.tasks.some(
+            (task) => task.complexity === "VERY_COMPLEX" && task.customEstimateMax == null,
+          )
+        }
+      />
     </div>
   );
 }

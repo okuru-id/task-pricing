@@ -1,14 +1,14 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { Complexity, Confidence } from "@prisma/client";
 import { Check, Copy, Pencil, Plus, Trash2, TriangleAlert, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { ComplexityBadge, ConfidenceLabel } from "@/components/task-badges";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { StepNav } from "@/components/step-nav";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { formatQuestionsForCopy, tasksMissingQuestions } from "@/lib/clarification";
 
@@ -202,21 +202,13 @@ export function ClarificationList({
         );
       })}
 
-      <div className="flex justify-between">
-        <Link
-          href={`/projects/${projectId}/milestone`}
-          className="bg-card hover:bg-muted flex h-8 items-center rounded-md border px-3 text-[13px] font-medium"
-        >
-          Kembali ke Milestone
-        </Link>
-        {missing.length > 0 ? (
-          <Button disabled>Lanjut ke Penawaran</Button>
-        ) : (
-          <Link href={`/projects/${projectId}/quotation`} className={buttonVariants()}>
-            Lanjut ke Penawaran
-          </Link>
-        )}
-      </div>
+      <StepNav
+        backHref={`/projects/${projectId}/milestone`}
+        backLabel="Kembali ke Milestone"
+        nextHref={`/projects/${projectId}/quotation`}
+        nextLabel="Lanjut ke Penawaran"
+        nextDisabled={missing.length > 0}
+      />
     </div>
   );
 }

@@ -3,6 +3,7 @@ import { FileDown } from "lucide-react";
 
 import { Breadcrumb } from "@/components/breadcrumb";
 import { Stepper } from "@/components/stepper";
+import { StepNav } from "@/components/step-nav";
 import { formatDate } from "@/lib/format";
 import { getLatestQuotation } from "@/lib/data/quotation";
 import { formatCustomerSummary, formatTotal } from "@/lib/quotation";
@@ -80,7 +81,7 @@ export default async function QuotationPage({
         ]}
       />
 
-      <Stepper current="Penawaran" />
+      <Stepper current="Penawaran" projectId={project.id} />
 
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div className="space-y-1">
@@ -183,6 +184,11 @@ export default async function QuotationPage({
           <QuotationView mode={mode} quotation={quotation} />
         </>
       )}
+
+      <StepNav
+        backHref={`/projects/${project.id}/clarification`}
+        backLabel="Kembali ke Klarifikasi"
+      />
     </div>
   );
 }

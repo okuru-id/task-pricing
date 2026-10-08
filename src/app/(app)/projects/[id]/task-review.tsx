@@ -4,7 +4,24 @@ import { Fragment, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { Complexity, TaskFlag, TaskType } from "@prisma/client";
-import { ArrowDown, ArrowUp, Lock, Plus, TriangleAlert } from "lucide-react";
+import {
+  DndContext,
+  DragOverlay,
+  KeyboardSensor,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import { GripVertical, Lock, Plus, TriangleAlert } from "lucide-react";
 import { toast } from "sonner";
 
 import { ComplexityBadge, ConfidenceLabel, FlagBadge } from "@/components/task-badges";
@@ -35,7 +52,7 @@ import { COMPLEXITY_LABEL, COMPLEXITY_ORDER, FLAGS, FLAG_LABEL, TASK_TYPES, TASK
 import { priceTask, totalPrice, type PriceRules } from "@/lib/pricing-engine";
 import { cn } from "@/lib/utils";
 
-import { addTask, deleteTask, moveTask, updateTask } from "./actions";
+import { addTask, deleteTask, moveTaskTo, updateTask } from "./actions";
 
 const PRIORITY_LABEL: Record<number, string> = { 0: "Belum diatur", 1: "Tinggi", 2: "Sedang", 3: "Rendah" };
 
@@ -167,9 +184,21 @@ export function TaskReview({
     });
   };
 
-  const move = (taskId: string, direction: "up" | "down") => {
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const sensors = useSensors(
+    // Jarak 8px: klik biasa tetap membuka editor, geser baru dianggap drag.
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    setActiveId(null);
+    if (!over || active.id === over.id) return;
+    const toIndex = tasks.findIndex((task) => task.id === over.id);
+    if (toIndex === -1) return;
     startTransition(async () => {
-      const result = await moveTask(taskId, direction);
+      const result = await moveTaskTo(String(active.id), toIndex);
       if (result.ok) router.refresh();
       else toast.error(result.error);
     });
@@ -183,12 +212,23 @@ export function TaskReview({
     });
   };
 
+  const activeTask = activeId ? (tasks.find((task) => task.id === activeId) ?? null) : null;
+
   return (
-    <div className="flex flex-col gap-6 lg:flex-row">
-      <section className="bg-card min-w-0 flex-1 overflow-hidden rounded-[10px] border">
+    <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
+      <section className="bg-card flex h-fit min-w-0 flex-1 flex-col overflow-hidden rounded-[10px] border">
+      <DndContext
+        id="task-reorder"
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragStart={(event) => setActiveId(String(event.active.id))}
+        onDragEnd={handleDragEnd}
+        onDragCancel={() => setActiveId(null)}
+      >
         <Table>
           <TableHeader>
             <TableRow className="bg-background hover:bg-background">
+              <TableHead className="w-10 text-center text-[11px] font-semibold">NO</TableHead>
               <TableHead className="text-[11px] font-semibold">TUGAS</TableHead>
               <TableHead className="w-24 text-[11px] font-semibold">TIPE</TableHead>
               <TableHead className="w-26 text-[11px] font-semibold">KOMPLEKSITAS</TableHead>
@@ -200,9 +240,13 @@ export function TaskReview({
           </TableHeader>
 
           <TableBody>
+            <SortableContext
+              items={tasks.map((task) => task.id)}
+              strategy={verticalListSortingStrategy}
+            >
             {tasks.length === 0 && (
               <TableRow>
-                <TableCell colSpan={7} className="text-muted-foreground py-12 text-center">
+                <TableCell colSpan={8} className="text-muted-foreground py-12 text-center">
                   Belum ada tugas pada estimasi ini.
                 </TableCell>
               </TableRow>
@@ -215,13 +259,18 @@ export function TaskReview({
 
               return (
                 <Fragment key={task.id}>
-                  <TableRow
-                    onClick={() => openEditor(task)}
-                    className={cn(
-                      "cursor-pointer align-top",
-                      expanded && "bg-primary-soft hover:bg-primary-soft",
-                    )}
+                  <SortableTaskRow
+                    id={task.id}
+                    label={task.name}
+                    expanded={expanded}
+                    disabled={pending}
+                    onOpen={() => {
+                      if (!activeId) openEditor(task);
+                    }}
                   >
+                    <TableCell className="text-muted-foreground text-center text-[13px] tabular-nums">
+                      {index + 1}
+                    </TableCell>
                     <TableCell className="text-[13px] leading-snug font-medium whitespace-normal">
                       {task.name}
                       {task.edited && (
@@ -260,33 +309,11 @@ export function TaskReview({
                         formatIDR(priceTask({ complexity: task.complexity }, rules).price)
                       )}
                     </TableCell>
-                    <TableCell>
-                      <span className="flex items-center gap-0.5" onClick={(event) => event.stopPropagation()}>
-                        <button
-                          type="button"
-                          aria-label="Geser ke atas"
-                          disabled={pending || index === 0}
-                          onClick={() => move(task.id, "up")}
-                          className="text-muted-foreground hover:text-foreground disabled:opacity-30"
-                        >
-                          <ArrowUp className="size-3.5" />
-                        </button>
-                        <button
-                          type="button"
-                          aria-label="Geser ke bawah"
-                          disabled={pending || index === tasks.length - 1}
-                          onClick={() => move(task.id, "down")}
-                          className="text-muted-foreground hover:text-foreground disabled:opacity-30"
-                        >
-                          <ArrowDown className="size-3.5" />
-                        </button>
-                      </span>
-                    </TableCell>
-                  </TableRow>
+                  </SortableTaskRow>
 
                   {expanded && draft && (
                     <TableRow className="hover:bg-transparent">
-                      <TableCell colSpan={7} className="bg-background p-0 whitespace-normal">
+                      <TableCell colSpan={8} className="bg-background p-0 whitespace-normal">
                         <div className="grid gap-7 p-5 lg:grid-cols-2">
                   <div className="space-y-3">
                     <p className="text-muted-foreground text-[11px] font-semibold">
@@ -510,18 +537,29 @@ export function TaskReview({
                 </Fragment>
               );
             })}
+            </SortableContext>
           </TableBody>
         </Table>
-
-        <Button
-          variant="ghost"
-          onClick={append}
-          disabled={pending}
-          className="text-primary w-full justify-start rounded-none border-t py-6 text-[13px]"
-        >
-          <Plus className="size-4" />
-          Tambah tugas
-        </Button>
+        <div className="border-t">
+          <Button
+            variant="ghost"
+            onClick={append}
+            disabled={pending}
+            className="text-primary w-full justify-start rounded-none py-4 text-[13px]"
+          >
+            <Plus className="size-4" />
+            Tambah tugas
+          </Button>
+        </div>
+        <DragOverlay>
+          {activeTask && (
+            <div className="bg-card flex items-center gap-2 rounded-lg border px-3 py-2 text-[13px] font-medium shadow-lg">
+              <GripVertical className="text-muted-foreground size-4" />
+              {activeTask.name}
+            </div>
+          )}
+        </DragOverlay>
+      </DndContext>
       </section>
 
       <Card className="h-fit w-full shrink-0 rounded-[10px] [--card-spacing:--spacing(5)] lg:w-[296px]">
@@ -604,5 +642,59 @@ export function TaskReview({
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+/** Baris tugas yang bisa di-drag lewat handle grip (pola shadcn dashboard-01). */
+function SortableTaskRow({
+  id,
+  label,
+  expanded,
+  disabled,
+  onOpen,
+  children,
+}: {
+  id: string;
+  label: string;
+  expanded: boolean;
+  disabled: boolean;
+  onOpen: () => void;
+  children: React.ReactNode;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id, disabled });
+
+  return (
+    <TableRow
+      ref={setNodeRef}
+      onClick={onOpen}
+      style={{ transform: CSS.Transform.toString(transform), transition }}
+      className={cn(
+        "cursor-pointer align-top",
+        expanded && "bg-primary-soft hover:bg-primary-soft",
+        isDragging && "opacity-60",
+      )}
+    >
+      {children}
+      <TableCell className="w-8">
+        <button
+          type="button"
+          {...attributes}
+          {...listeners}
+          aria-label={`Geser ${label}`}
+          onClick={(event) => event.stopPropagation()}
+          disabled={disabled}
+          className="text-muted-foreground hover:text-foreground flex size-7 cursor-grab touch-none items-center justify-center rounded-md active:cursor-grabbing disabled:opacity-30"
+        >
+          <GripVertical className="size-4" />
+        </button>
+      </TableCell>
+    </TableRow>
   );
 }
