@@ -217,3 +217,40 @@ export async function moveTask(taskId: string, direction: "up" | "down"): Promis
   revalidatePath(`/projects/${found.estimation.projectId}`);
   return { ok: true };
 }
+
+/**
+ * Pindahkan task ke posisi `toIndex` (0-based) — dipakai drag-and-drop. Task di antaranya bergeser satu posisi
+ * (bukan ditukar). Indeks di luar rentang dijepit; urutan dinormalisasi ulang agar tidak ada nilai ganda.
+ */
+export async function moveTaskTo(taskId: string, toIndex: number): Promise<ActionResult> {
+  const { workspaceId } = await requireScope();
+
+  if (!Number.isInteger(toIndex)) return { ok: false, error: "Posisi tujuan tidak valid" };
+
+  const found = await locateTask(taskId, workspaceId);
+  if (!found) return { ok: false, error: "Tugas tidak ditemukan" };
+
+  const siblings = await prisma.estimationTask.findMany({
+    where: { estimationId: found.estimation.id },
+    orderBy: [{ order: "asc" }, { createdAt: "asc" }],
+    select: { id: true },
+  });
+
+  const from = siblings.findIndex((task) => task.id === taskId);
+  if (from === -1) return { ok: false, error: "Tugas tidak ditemukan" };
+
+  const to = Math.min(Math.max(toIndex, 0), siblings.length - 1);
+  if (to === from) return { ok: true };
+
+  const [moved] = siblings.splice(from, 1);
+  siblings.splice(to, 0, moved);
+
+  await prisma.$transaction(
+    siblings.map((task, order) =>
+      prisma.estimationTask.update({ where: { id: task.id }, data: { order } }),
+    ),
+  );
+
+  revalidatePath(`/projects/${found.estimation.projectId}`);
+  return { ok: true };
+}
