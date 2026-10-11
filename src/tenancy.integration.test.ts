@@ -607,6 +607,43 @@ describe.skipIf(!DB_URL)("isolasi antar workspace", () => {
     expect(await prisma.estimationTask.count({ where: { estimationId: estimation.id } })).toBe(3);
   });
 
+  it("moveTaskTo: memindahkan ke posisi tujuan (drag-and-drop), menggeser sisanya, dan dijaga per workspace", async () => {
+    const actions = await import("@/app/(app)/projects/[id]/actions");
+    const project = await prisma.project.create({
+      data: {
+        workspaceId: a.ws,
+        name: "Project urut",
+        estimations: {
+          create: {
+            requirement: "u".repeat(60),
+            tasks: {
+              create: ["A", "B", "C", "D"].map((name, order) => ({ name, order, type: "BUG" as const, complexity: "SIMPLE" as const, price: 1 })),
+            },
+          },
+        },
+      },
+      include: { estimations: { include: { tasks: true } } },
+    });
+    const byName = Object.fromEntries(project.estimations[0].tasks.map((t) => [t.name, t.id]));
+    const names = async () =>
+      (await prisma.estimationTask.findMany({ where: { estimationId: project.estimations[0].id }, orderBy: { order: "asc" } })).map((t) => t.name).join("");
+
+    asB();
+    expect(await actions.moveTaskTo(byName.A, 2)).toMatchObject({ ok: false });
+    expect(await names()).toBe("ABCD");
+
+    asA();
+    expect(await actions.moveTaskTo(byName.A, 2)).toEqual({ ok: true });
+    expect(await names()).toBe("BCAD"); // A turun ke indeks 2; B dan C naik satu
+    expect(await actions.moveTaskTo(byName.D, 0)).toEqual({ ok: true });
+    expect(await names()).toBe("DBCA");
+    expect(await actions.moveTaskTo(byName.D, 99)).toEqual({ ok: true }); // dijepit ke posisi terakhir
+    expect(await names()).toBe("BCAD");
+    expect(await actions.moveTaskTo(byName.B, 0)).toEqual({ ok: true }); // posisi sama = tidak ada perubahan
+    expect(await names()).toBe("BCAD");
+    expect(await actions.moveTaskTo(byName.B, 1.5)).toMatchObject({ ok: false });
+  });
+
   it("lease: permintaan kedua pada job yang sedang berjalan mendapat 'busy'", async () => {
     await ensureAiConfig();
     const { createAnalysisJob, advanceJob } = await import("@/lib/ai/job");
