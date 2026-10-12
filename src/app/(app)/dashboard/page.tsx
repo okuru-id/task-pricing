@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { ProjectStatus } from "@prisma/client";
-import { BadgeCheck, FolderOpen, Plus, TrendingUp, Wallet } from "lucide-react";
+import { BadgeCheck, FolderOpen, TrendingUp, Wallet } from "lucide-react";
 
 import { STATUS_DOT, StatusBadge } from "@/components/status-badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -12,7 +12,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { getDashboardStats, listProjects } from "@/lib/data/projects";
+import { ProjectPagination } from "./project-pagination";
+import { DEFAULT_PAGE_SIZE, PROJECT_PAGE_SIZES, getDashboardStats, listProjects } from "@/lib/data/projects";
 import { formatIDR, formatIDRShort, formatRange, formatRelativeDay } from "@/lib/format";
 import { STATUS_LABEL } from "@/lib/labels";
 import { cn } from "@/lib/utils";
@@ -32,19 +33,34 @@ function greeting(date = new Date()) {
 export default async function DashboardPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string }>;
+  searchParams: Promise<{ status?: string; page?: string; pageSize?: string }>;
 }) {
   const { workspaceId } = await requireScope();
-  const { status } = await searchParams;
+  const { status, page: pageParam, pageSize: pageSizeParam } = await searchParams;
 
   const activeStatus = STATUSES.includes(status as ProjectStatus)
     ? (status as ProjectStatus)
     : undefined;
 
-  const [projects, stats] = await Promise.all([
-    listProjects(workspaceId, activeStatus),
+  const parsedPageSize = Number(pageSizeParam);
+  const pageSize = PROJECT_PAGE_SIZES.includes(parsedPageSize as (typeof PROJECT_PAGE_SIZES)[number])
+    ? parsedPageSize
+    : DEFAULT_PAGE_SIZE;
+  const requestedPage = Math.max(Number(pageParam) || 1, 1);
+
+  const [{ projects, total }, stats] = await Promise.all([
+    listProjects(workspaceId, activeStatus, requestedPage, pageSize),
     getDashboardStats(workspaceId),
   ]);
+
+  // Jepit ke halaman terakhir yang valid bila param page melebihi total.
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const page = Math.min(requestedPage, totalPages);
+  const visibleProjects =
+    page === requestedPage
+      ? projects
+      : (await listProjects(workspaceId, activeStatus, page, pageSize)).projects;
+  const rowOffset = (page - 1) * pageSize;
 
   const today = new Intl.DateTimeFormat("id-ID", { dateStyle: "full" }).format(new Date());
   const pipelineTotal = PIPELINE.reduce((sum, s) => sum + (stats.countByStatus[s] ?? 0), 0);
@@ -59,14 +75,7 @@ export default async function DashboardPage({
             {today} · {stats.awaitingCount} quotation menunggu keputusan klien
           </p>
         </div>
-        {/* Di mobile aksi ini sudah tersedia sebagai tombol melayang (lihat Sidebar). */}
-        <Link
-          href="/estimations/new"
-          className="bg-primary text-primary-foreground hover:bg-primary/90 hidden h-10 shrink-0 items-center gap-2 rounded-lg px-4 text-sm font-medium lg:flex"
-        >
-          <Plus className="size-4" />
-          New Estimation
-        </Link>
+        {/* Aksi Estimasi Baru tersedia di header & sidebar, jadi tidak diduplikasi di sini. */}
       </header>
 
       {/*
@@ -219,7 +228,7 @@ export default async function DashboardPage({
 
       {/* Mobile: tabel 5 kolom tidak terbaca di 375px — daftar kartu sesuai design mobile. */}
       <section className="flex flex-col gap-3 sm:hidden">
-        {projects.length === 0 && (
+        {visibleProjects.length === 0 && (
           <p className="text-muted-foreground bg-card rounded-xl border p-6 text-center text-[13px]">
             Belum ada project.{" "}
             <Link href="/estimations/new" className="text-primary font-medium">
@@ -228,7 +237,7 @@ export default async function DashboardPage({
           </p>
         )}
 
-        {projects.map((project) => (
+        {visibleProjects.map((project) => (
           <Link
             key={project.id}
             href={`/projects/${project.id}`}
@@ -256,6 +265,7 @@ export default async function DashboardPage({
         <Table>
           <TableHeader>
             <TableRow className="bg-background hover:bg-background">
+              <TableHead className="w-10 text-center">No</TableHead>
               <TableHead>Proyek</TableHead>
               <TableHead className="w-44">Klien</TableHead>
               <TableHead className="w-38">Nilai</TableHead>
@@ -265,9 +275,9 @@ export default async function DashboardPage({
           </TableHeader>
 
           <TableBody>
-            {projects.length === 0 && (
+            {visibleProjects.length === 0 && (
               <TableRow>
-                <TableCell colSpan={5} className="text-muted-foreground py-12 text-center">
+                <TableCell colSpan={6} className="text-muted-foreground py-12 text-center">
                   Belum ada project.{" "}
                   <Link
                     href="/estimations/new"
@@ -279,8 +289,11 @@ export default async function DashboardPage({
               </TableRow>
             )}
 
-            {projects.map((project) => (
+            {visibleProjects.map((project, index) => (
               <TableRow key={project.id}>
+                <TableCell className="text-muted-foreground text-center text-[13px] tabular-nums">
+                  {rowOffset + index + 1}
+                </TableCell>
                 <TableCell className="text-[13px] font-semibold">
                   <Link href={`/projects/${project.id}`} className="hover:underline">
                     {project.name}
@@ -307,7 +320,14 @@ export default async function DashboardPage({
             ))}
           </TableBody>
         </Table>
+        <div className="border-t px-4 py-3">
+          <ProjectPagination page={page} pageSize={pageSize} total={total} />
+        </div>
       </section>
+
+      <div className="sm:hidden">
+        <ProjectPagination page={page} pageSize={pageSize} total={total} />
+      </div>
     </div>
   );
 }

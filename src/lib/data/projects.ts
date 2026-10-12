@@ -53,30 +53,48 @@ function addValue(acc: ProjectValue, value: ProjectValue): ProjectValue {
   return acc;
 }
 
-export async function listProjects(workspaceId: string, status?: ProjectStatus) {
-  const projects = await prisma.project.findMany({
-    // Tanpa filter, project Archived disembunyikan dari dashboard (tetap ada di History).
-    where: {
-      workspaceId,
-      deletedAt: null,
-      ...(status ? { status } : { status: { not: "ARCHIVED" as const } }),
-    },
-    orderBy: { updatedAt: "desc" },
-    select: {
-      id: true,
-      name: true,
-      clientName: true,
-      status: true,
-      updatedAt: true,
-      estimations: latestEstimation,
-    },
-  });
+export const PROJECT_PAGE_SIZES = [10, 20, 50] as const;
+export const DEFAULT_PAGE_SIZE = 10;
 
-  return projects.map((project) => ({
-    ...project,
-    estimationId: project.estimations[0]?.id ?? null,
-    value: sumTasks(project.estimations[0]?.tasks ?? []),
-  }));
+export async function listProjects(
+  workspaceId: string,
+  status?: ProjectStatus,
+  page = 1,
+  pageSize: number = DEFAULT_PAGE_SIZE,
+) {
+  // Tanpa filter, project Archived disembunyikan dari dashboard (tetap ada di History).
+  const where = {
+    workspaceId,
+    deletedAt: null,
+    ...(status ? { status } : { status: { not: "ARCHIVED" as const } }),
+  };
+
+  const [total, projects] = await prisma.$transaction([
+    prisma.project.count({ where }),
+    prisma.project.findMany({
+      where,
+      orderBy: { updatedAt: "desc" },
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+      select: {
+        id: true,
+        name: true,
+        clientName: true,
+        status: true,
+        updatedAt: true,
+        estimations: latestEstimation,
+      },
+    }),
+  ]);
+
+  return {
+    total,
+    projects: projects.map((project) => ({
+      ...project,
+      estimationId: project.estimations[0]?.id ?? null,
+      value: sumTasks(project.estimations[0]?.tasks ?? []),
+    })),
+  };
 }
 
 const ACTIVE_STATUSES: ProjectStatus[] = ["DRAFT", "ANALYZED", "QUOTED"];

@@ -28,7 +28,7 @@ export default async function ClarificationPage({ params }: { params: Promise<{ 
         ]}
       />
 
-      <Stepper current="Klarifikasi" />
+      <Stepper current="Klarifikasi" projectId={project.id} />
 
       <header className="space-y-1">
         <h1 className="text-2xl leading-tight font-bold">Klarifikasi Pelanggan</h1>

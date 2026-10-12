@@ -22,7 +22,7 @@ export default async function MilestonePage({ params }: { params: Promise<{ id: 
         ]}
       />
 
-      <Stepper current="Milestone" />
+      <Stepper current="Milestone" projectId={project.id} />
 
       <header className="space-y-1">
         <h1 className="text-2xl leading-tight font-bold">Milestone</h1>

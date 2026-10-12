@@ -43,3 +43,6 @@ next-env.d.ts
 
 # Hasil run eval terakhir (data mentah untuk diagnosa, bukan artefak yang perlu di-share)
 evals/last-run.json
+
+# Artefak log Playwright CLI (debugging), bukan bagian proyek
+.playwright-cli/

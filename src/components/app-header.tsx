@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Plus } from "lucide-react";
 
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Separator } from "@/components/ui/separator";
@@ -77,18 +76,8 @@ export function AppHeader() {
           </BreadcrumbList>
         </Breadcrumb>
 
-        {/* 3. Right Action Area: New Estimation & Theme Toggle */}
+        {/* 3. Right Action Area: Theme Toggle */}
         <div className="ml-auto flex items-center gap-2">
-          {pathname !== "/estimations/new" && (
-            <Link
-              href="/estimations/new"
-              className="hidden sm:inline-flex items-center gap-1.5 rounded-md bg-primary px-2.5 py-1 text-xs font-semibold text-primary-foreground shadow-xs transition hover:bg-primary/90"
-            >
-              <Plus className="size-3.5" />
-              <span>Estimasi Baru</span>
-            </Link>
-          )}
-
           <ThemeToggle />
         </div>
       </div>
