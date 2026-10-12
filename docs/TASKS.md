@@ -5,6 +5,8 @@
 Status: seluruh item MVP sudah dibangun (kecuali yang ditandai terbuka di bawah). Backlog v1.1/v2.0 belum dikerjakan.
 Release gate AI: golden set 53 kasus sudah dilabeli 2 reviewer. Gate masih merah — complexity accuracy 44,6% dan flag precision 27,4% (lihat bagian Evaluation).
 
+Deploy: lihat [DEPLOY.md](DEPLOY.md) (Vercel; migrasi database otomatis di deployment production).
+
 Setup lokal: Postgres jalan di Docker (`taskpricer-db`, port 5433). Jalankan `npm run dev`, `npm run test:run`.
 
 ---
