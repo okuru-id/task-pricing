@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
@@ -86,22 +86,37 @@ export function SettingsForms({
   // semua gateway menyediakan endpoint /models.
   const [models, setModels] = useState<string[]>([]);
   const [loadingModels, setLoadingModels] = useState(false);
+  const [modelError, setModelError] = useState<string | null>(null);
 
   const isOllama = provider === "ollama";
 
-  const loadModels = async () => {
+  const loadModels = async (announce = true) => {
     setLoadingModels(true);
     const result = await listModels({ baseUrl, apiKey: isOllama ? "" : apiKey });
     setLoadingModels(false);
 
     if (!result.ok) {
-      toast.error(result.error);
+      // Galat ditampilkan di bawah kolom (tetap terlihat), bukan hanya toast yang cepat hilang.
+      setModelError(result.error);
+      setModels([]);
       return;
     }
 
+    setModelError(null);
     setModels(result.models);
-    toast.success(`${result.models.length} model ditemukan`);
+    if (announce) toast.success(`${result.models.length} model ditemukan`);
   };
+
+  // Daftar dimuat otomatis saat halaman dibuka jika konfigurasi sudah tersimpan, supaya user langsung
+  // melihat pilihan model dari provider tanpa harus menekan tombol dulu.
+  const autoLoaded = useRef(false);
+  useEffect(() => {
+    if (autoLoaded.current || !ai || aiProblem) return;
+    autoLoaded.current = true;
+    void loadModels(false);
+    // Hanya saat mount: loadModels memakai nilai form awal.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const [brand, setBrand] = useState({
     companyName: branding.companyName ?? "",
@@ -138,6 +153,8 @@ export function SettingsForms({
             onValueChange={(v) => {
               if (!v) return;
               setProvider(v as AiProvider);
+              setModels([]);
+              setModelError(null);
               // Ollama butuh Base URL lokal; isi contohnya agar tidak ada tebakan tersembunyi di server.
               if (v === "ollama" && !baseUrl && allowPrivate) setBaseUrl(OLLAMA_DEFAULT_BASE_URL);
             }}
@@ -234,10 +251,12 @@ export function SettingsForms({
                 />
               )}
 
+              {modelError && <p className="text-danger text-xs">{modelError}</p>}
+
               <div className="flex items-center gap-1 text-xs">
                 <button
                   type="button"
-                  onClick={loadModels}
+                  onClick={() => void loadModels()}
                   disabled={loadingModels}
                   className="text-primary font-medium hover:underline disabled:opacity-60 max-lg:py-2.5"
                 >
