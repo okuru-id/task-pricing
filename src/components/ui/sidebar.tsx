@@ -171,7 +171,10 @@ export function Sidebar({
           data-slot="sidebar"
           data-mobile="true"
           className={cn(
-            "relative z-50 flex h-full w-[280px] flex-col bg-background p-4 text-sidebar-foreground shadow-2xl transition-transform animate-in slide-in-from-left duration-200 border-none",
+            // Tanpa padding di wrapper: header/content/footer sudah punya padding sendiri
+            // (sama seperti varian desktop di bawah). p-4 di sini membuat tepi jadi dobel.
+            // max-w menjaga backdrop tetap terlihat di layar yang lebih sempit dari 320px.
+            "relative z-50 flex h-full w-[280px] max-w-[85vw] flex-col bg-background text-sidebar-foreground shadow-2xl transition-transform animate-in slide-in-from-left duration-200 border-none",
             className
           )}
           {...props}
