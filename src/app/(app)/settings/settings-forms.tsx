@@ -5,6 +5,14 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import {
+  Combobox,
+  ComboboxContent,
+  ComboboxEmpty,
+  ComboboxInput,
+  ComboboxItem,
+  ComboboxList,
+} from "@/components/ui/combobox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -226,22 +234,28 @@ export function SettingsForms({
           <Field label="Model">
             <div className="space-y-1.5">
               {models.length > 0 ? (
-                <Select
-                  items={Object.fromEntries(models.map((id) => [id, id]))}
+                // Combobox, bukan Select: satu gateway bisa mengembalikan ratusan model,
+                // jadi daftar tanpa pencarian tidak terpakai.
+                <Combobox
+                  items={models}
                   value={model}
                   onValueChange={(value) => setModel(value ?? "")}
                 >
-                  <SelectTrigger className="w-full text-[13px] data-[size=default]:h-10 lg:data-[size=default]:h-9">
-                    <SelectValue placeholder="Pilih model" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {models.map((id) => (
-                      <SelectItem key={id} value={id}>
-                        {id}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  <ComboboxInput
+                    placeholder="Cari model…"
+                    className="w-full text-[13px] [&_input]:h-10 lg:[&_input]:h-9"
+                  />
+                  <ComboboxContent className="max-h-72">
+                    <ComboboxEmpty>Tidak ada model yang cocok.</ComboboxEmpty>
+                    <ComboboxList>
+                      {(id: string) => (
+                        <ComboboxItem key={id} value={id} className="text-[13px]">
+                          {id}
+                        </ComboboxItem>
+                      )}
+                    </ComboboxList>
+                  </ComboboxContent>
+                </Combobox>
               ) : (
                 <Input
                   value={model}
