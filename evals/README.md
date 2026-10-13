@@ -6,11 +6,14 @@ Golden set ada di `evals/golden/*.json` (array `GoldenCase`, lihat `src/lib/eval
 
 ## Status golden set
 
-`v1.json` berisi 53 kasus requirement berbahasa Indonesia dengan **label draft** (`"draft": true`,
-`labelledBy: []`). Label itu disusun sebagai titik awal, **bukan** label resmi.
+`v1.json` berisi 53 kasus requirement berbahasa Indonesia, **semuanya sudah dilabeli dua reviewer**
+(kurob dan bagas) — syarat §5 PRD terpenuhi, jadi skor eval sah dipakai sebagai bukti rilis.
 
 Syarat rilis (§5 PRD): ≥ 50 kasus, tiap kasus dilabeli ≥ 2 reviewer manusia. Runner menolak
 menyatakan "layak rilis" selama `labelledBy` belum terisi 2 nama, apa pun skornya.
+
+Catatan cakupan: 53 kasus itu **seluruhnya pekerjaan software/IT**. Skor yang dihasilkan hanya
+berbicara tentang domain itu; profesi lain belum punya bukti kualitas apa pun.
 
 ### Cara mereview
 

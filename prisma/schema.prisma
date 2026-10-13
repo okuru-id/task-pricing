@@ -142,6 +142,7 @@ model Workspace {
 
   members         WorkspaceMember[]
   pricingProfiles PricingProfile[]
+  jobProfiles     JobProfile[]
   projects        Project[]
   aiConfigs       AiConfig[]
 
@@ -169,11 +170,73 @@ model PricingProfile {
   isDefault   Boolean  @default(false)
   createdAt   DateTime @default(now())
 
-  workspace Workspace      @relation(fields: [workspaceId], references: [id])
+  workspace Workspace       @relation(fields: [workspaceId], references: [id])
   rules     PricingRule[]
   snapshots QuotationItem[]
+  jobProfile JobProfile?
 
   @@map("pricing_profiles")
+}
+
+/// Jenis pekerjaan yang diestimasi (software, fotografi, penulisan, …). Aplikasi tidak lagi
+/// mengasumsikan pekerjaan IT: istilah, definisi kompleksitas, dan tipe task ditentukan di sini
+/// agar AI menilai dengan kacamata profesi yang benar (§3 Human Review).
+model JobProfile {
+  id          String   @id @default(cuid())
+  workspaceId String
+  name        String
+  /// Dipakai untuk menandai domain pada golden set eval — skor dinilai per domain.
+  slug        String
+  isDefault   Boolean  @default(false)
+
+  /// Konteks profesi untuk AI: istilah yang dipakai, hal yang perlu diperhatikan.
+  /// Menggantikan kalimat "freelancer software developer" yang dulu dipaku di prompt.
+  aiInstruction String?
+
+  /// Arti tiap tingkat bagi profesi ini. Inilah dasar harga, jadi definisinya tidak boleh
+  /// generik — "Complex" bagi fotografer bukan "Complex" bagi developer.
+  simpleGuide      String?
+  mediumGuide      String?
+  complexGuide     String?
+  veryComplexGuide String?
+
+  /// Kata kunci yang memaksa flag THIRD_PARTY_DEPENDENCY / DATA_MIGRATION (regex, case-insensitive).
+  /// Dulu konstanta IT di analyze.ts; kini per profesi karena "webhook" tak berarti bagi fotografer.
+  thirdPartyHints String?
+  migrationHints  String?
+
+  /// Hal yang tidak termasuk dalam penawaran, tampil otomatis di quotation.
+  exclusions String[]
+
+  /// Harga per tingkat kompleksitas. Satu profil pekerjaan memakai satu pricing profile.
+  pricingProfileId String? @unique
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  workspace      Workspace       @relation(fields: [workspaceId], references: [id])
+  pricingProfile PricingProfile? @relation(fields: [pricingProfileId], references: [id])
+  taskTypes      JobTaskType[]
+  projects       Project[]
+
+  @@unique([workspaceId, slug])
+  @@map("job_profiles")
+}
+
+/// Tipe task milik satu profil pekerjaan. Menggantikan enum TaskType yang IT-centric
+/// (BUG, NEW_FEATURE, INFRASTRUCTURE, …) agar tiap profesi memakai kategorinya sendiri.
+model JobTaskType {
+  id           String @id @default(cuid())
+  jobProfileId String
+  /// Kode stabil yang dipakai AI dan tersimpan di task (mis. "sesi_foto", "new_feature").
+  code         String
+  label        String
+  order        Int    @default(0)
+
+  profile JobProfile @relation(fields: [jobProfileId], references: [id], onDelete: Cascade)
+
+  @@unique([jobProfileId, code])
+  @@map("job_task_types")
 }
 
 model PricingRule {
@@ -201,7 +264,12 @@ model Project {
   updatedAt   DateTime      @updatedAt
   deletedAt   DateTime?
 
+  /// Jenis pekerjaan project ini. Nullable untuk project lama; analisis memakai profil
+  /// default workspace bila kosong.
+  jobProfileId String?
+
   workspace      Workspace       @relation(fields: [workspaceId], references: [id])
+  jobProfile     JobProfile?     @relation(fields: [jobProfileId], references: [id])
   estimations    Estimation[]
   changeRequests ChangeRequest[]
 
