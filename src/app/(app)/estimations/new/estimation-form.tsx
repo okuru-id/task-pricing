@@ -28,9 +28,23 @@ export interface JobProfileOption {
   id: string;
   name: string;
   isDefault: boolean;
+  /** Tarif bawaan jenis pekerjaan ini; dipakai sebagai pilihan awal, bukan kunci. */
+  pricingProfileId?: string | null;
 }
 
-export function EstimationForm({ jobProfiles = [] }: { jobProfiles?: JobProfileOption[] }) {
+export interface PricingProfileOption {
+  id: string;
+  name: string;
+  isDefault: boolean;
+}
+
+export function EstimationForm({
+  jobProfiles = [],
+  pricingProfiles = [],
+}: {
+  jobProfiles?: JobProfileOption[];
+  pricingProfiles?: PricingProfileOption[];
+}) {
   const [name, setName] = useState("");
   const [clientName, setClientName] = useState("");
   const [requirement, setRequirement] = useState("");
@@ -39,23 +53,37 @@ export function EstimationForm({ jobProfiles = [] }: { jobProfiles?: JobProfileO
   const [pending, startTransition] = useTransition();
 
   // Jenis pekerjaan menentukan istilah dan ukuran kompleksitas yang dipakai AI.
-  const [jobProfileId, setJobProfileId] = useState<string | null>(
-    jobProfiles.find((profile) => profile.isDefault)?.id ?? jobProfiles[0]?.id ?? null,
-  );
+  const defaultJob = jobProfiles.find((profile) => profile.isDefault) ?? jobProfiles[0];
+  const [jobProfileId, setJobProfileId] = useState<string | null>(defaultJob?.id ?? null);
+
+  // Tarif mengikuti jenis pekerjaan, tapi bisa ditimpa — mis. klien dengan kesepakatan sendiri.
+  const defaultPricing =
+    defaultJob?.pricingProfileId ??
+    pricingProfiles.find((profile) => profile.isDefault)?.id ??
+    pricingProfiles[0]?.id ??
+    null;
+  const [pricingProfileId, setPricingProfileId] = useState<string | null>(defaultPricing);
+
+  /** Ganti jenis pekerjaan → tarifnya ikut, kecuali jenis itu belum punya tarif sendiri. */
+  const chooseJob = (value: string | null) => {
+    setJobProfileId(value);
+    const linked = jobProfiles.find((profile) => profile.id === value)?.pricingProfileId;
+    if (linked) setPricingProfileId(linked);
+  };
 
   // Autosave hanya jalan kalau ada perubahan sejak simpan terakhir.
   const dirty = useRef(false);
-  const latest = useRef({ name, clientName, requirement, projectId, jobProfileId });
+  const latest = useRef({ name, clientName, requirement, projectId, jobProfileId, pricingProfileId });
 
   useEffect(() => {
-    latest.current = { name, clientName, requirement, projectId, jobProfileId };
-  }, [name, clientName, requirement, projectId, jobProfileId]);
+    latest.current = { name, clientName, requirement, projectId, jobProfileId, pricingProfileId };
+  }, [name, clientName, requirement, projectId, jobProfileId, pricingProfileId]);
 
   // projectId sengaja tidak masuk deps: ia berubah tepat setelah simpan,
   // dan itu bukan perubahan isi yang perlu disimpan ulang.
   useEffect(() => {
     dirty.current = true;
-  }, [name, clientName, requirement, jobProfileId]);
+  }, [name, clientName, requirement, jobProfileId, pricingProfileId]);
 
   useEffect(() => {
     const timer = setInterval(async () => {
@@ -129,7 +157,7 @@ export function EstimationForm({ jobProfiles = [] }: { jobProfiles?: JobProfileO
           <Select
             items={Object.fromEntries(jobProfiles.map((profile) => [profile.id, profile.name]))}
             value={jobProfileId ?? ""}
-            onValueChange={(value) => setJobProfileId(value ?? null)}
+            onValueChange={(value) => chooseJob(value ?? null)}
           >
             <SelectTrigger className="bg-card w-full text-[13px] data-[size=default]:h-10">
               <SelectValue placeholder="Pilih jenis pekerjaan" />
@@ -144,7 +172,33 @@ export function EstimationForm({ jobProfiles = [] }: { jobProfiles?: JobProfileO
           </Select>
           <p className="text-muted-foreground text-[11px]">
             Menentukan istilah dan ukuran kompleksitas yang dipakai AI. Kelola daftarnya di
-            Pengaturan AI.
+            Profil Pekerjaan &amp; Harga.
+          </p>
+        </div>
+      )}
+
+      {/* Tarif ikut jenis pekerjaan, tapi bisa diganti untuk klien dengan kesepakatan sendiri. */}
+      {pricingProfiles.length > 0 && (
+        <div className="space-y-1.5">
+          <Label className="text-[13px]">Profil harga</Label>
+          <Select
+            items={Object.fromEntries(pricingProfiles.map((profile) => [profile.id, profile.name]))}
+            value={pricingProfileId ?? ""}
+            onValueChange={(value) => setPricingProfileId(value ?? null)}
+          >
+            <SelectTrigger className="bg-card w-full text-[13px] data-[size=default]:h-10">
+              <SelectValue placeholder="Pilih profil harga" />
+            </SelectTrigger>
+            <SelectContent>
+              {pricingProfiles.map((profile) => (
+                <SelectItem key={profile.id} value={profile.id}>
+                  {profile.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="text-muted-foreground text-[11px]">
+            Tarif per tingkat kompleksitas yang dipakai estimasi ini.
           </p>
         </div>
       )}

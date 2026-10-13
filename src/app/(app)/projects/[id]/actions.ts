@@ -5,7 +5,7 @@ import type { Complexity, TaskFlag } from "@prisma/client";
 import { z } from "zod";
 
 import { syncMilestonePrices } from "@/lib/data/milestones";
-import { getPriceRules } from "@/lib/data/pricing";
+import { getPriceRulesFor } from "@/lib/data/pricing";
 import { prisma } from "@/lib/prisma";
 import { PricingError, priceTask } from "@/lib/pricing-engine";
 import { requireScope } from "@/lib/workspace";
@@ -46,7 +46,17 @@ export type ActionResult = { ok: true } | { ok: false; error: string };
 async function locateTask(taskId: string, workspaceId: string) {
   return prisma.estimationTask.findFirst({
     where: { id: taskId, estimation: { project: { workspaceId, deletedAt: null } } },
-    select: { id: true, estimation: { select: { id: true, projectId: true } } },
+    select: {
+      id: true,
+      estimation: {
+        select: {
+          id: true,
+          projectId: true,
+          // Harga dihitung ulang dengan tarif project, bukan tarif default workspace.
+          project: { select: { pricingProfileId: true } },
+        },
+      },
+    },
   });
 }
 
@@ -66,7 +76,7 @@ export async function updateTask(input: UpdateTaskInput): Promise<ActionResult> 
   }
 
   // Harga SELALU dihitung ulang di server dari complexity — angka dari client diabaikan (§3).
-  const rules = await getPriceRules(workspaceId);
+  const rules = await getPriceRulesFor(workspaceId, found.estimation.project.pricingProfileId);
   let price: number;
   try {
     price = priceTask(
@@ -156,12 +166,16 @@ export async function addTask(projectId: string): Promise<ActionResult> {
   const estimation = await prisma.estimation.findFirst({
     where: { project: { id: projectId, workspaceId, deletedAt: null } },
     orderBy: { version: "desc" },
-    select: { id: true, _count: { select: { tasks: true } } },
+    select: {
+      id: true,
+      _count: { select: { tasks: true } },
+      project: { select: { pricingProfileId: true } },
+    },
   });
 
   if (!estimation) return { ok: false, error: "Estimation tidak ditemukan" };
 
-  const rules = await getPriceRules(workspaceId);
+  const rules = await getPriceRulesFor(workspaceId, estimation.project.pricingProfileId);
 
   await prisma.estimationTask.create({
     data: {

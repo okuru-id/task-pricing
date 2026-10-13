@@ -90,7 +90,7 @@ export async function saveJobProfile(input: JobProfileInput): Promise<ActionResu
       }
     });
 
-    revalidatePath("/settings");
+    revalidatePath("/pricing");
     return { ok: true };
   }
 
@@ -112,7 +112,7 @@ export async function saveJobProfile(input: JobProfileInput): Promise<ActionResu
     },
   });
 
-  revalidatePath("/settings");
+  revalidatePath("/pricing");
   return { ok: true };
 }
 
@@ -127,7 +127,7 @@ export async function setDefaultJobProfile(id: string): Promise<ActionResult> {
     prisma.jobProfile.update({ where: { id }, data: { isDefault: true } }),
   ]);
 
-  revalidatePath("/settings");
+  revalidatePath("/pricing");
   return { ok: true };
 }
 
@@ -153,6 +153,6 @@ export async function deleteJobProfile(id: string): Promise<ActionResult> {
 
   await prisma.jobProfile.delete({ where: { id } });
 
-  revalidatePath("/settings");
+  revalidatePath("/pricing");
   return { ok: true };
 }

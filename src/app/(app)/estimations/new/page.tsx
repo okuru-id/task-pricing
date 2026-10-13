@@ -1,12 +1,16 @@
 import { Breadcrumb } from "@/components/breadcrumb";
 import { listJobProfileOptions } from "@/lib/data/job-profiles";
+import { listPricingProfiles } from "@/lib/data/pricing";
 import { requireScope } from "@/lib/workspace";
 
 import { EstimationForm } from "./estimation-form";
 
 export default async function NewEstimationPage() {
   const { workspaceId } = await requireScope();
-  const jobProfiles = await listJobProfileOptions(workspaceId);
+  const [jobProfiles, pricingProfiles] = await Promise.all([
+    listJobProfileOptions(workspaceId),
+    listPricingProfiles(workspaceId),
+  ]);
 
   return (
     <div className="flex flex-col gap-5">
@@ -20,7 +24,7 @@ export default async function NewEstimationPage() {
         </p>
       </header>
 
-      <EstimationForm jobProfiles={jobProfiles} />
+      <EstimationForm jobProfiles={jobProfiles} pricingProfiles={pricingProfiles} />
     </div>
   );
 }

@@ -49,7 +49,8 @@ export async function listJobProfileOptions(workspaceId: string) {
   return prisma.jobProfile.findMany({
     where: { workspaceId },
     orderBy: [{ isDefault: "desc" }, { name: "asc" }],
-    select: { id: true, name: true, isDefault: true },
+    // pricingProfileId ikut supaya memilih jenis pekerjaan langsung membawa tarifnya.
+    select: { id: true, name: true, isDefault: true, pricingProfileId: true },
   });
 }
 

@@ -2,64 +2,191 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { Check, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import type { PricingProfileView } from "@/lib/data/pricing";
+import { formatIDR } from "@/lib/format";
 
-import { savePricing, type PricingInput } from "./actions";
+import { deletePricingProfile, savePricing, setDefaultPricingProfile } from "./actions";
 
-const ROWS: { key: keyof PricingInput; label: string }[] = [
+interface Draft {
+  profileId?: string;
+  name: string;
+  SIMPLE: string;
+  MEDIUM: string;
+  COMPLEX: string;
+}
+
+const toDraft = (profile: PricingProfileView): Draft => ({
+  profileId: profile.id,
+  name: profile.name,
+  SIMPLE: String(profile.rules.SIMPLE ?? 0),
+  MEDIUM: String(profile.rules.MEDIUM ?? 0),
+  COMPLEX: String(profile.rules.COMPLEX ?? 0),
+});
+
+const emptyDraft = (): Draft => ({ name: "", SIMPLE: "100000", MEDIUM: "200000", COMPLEX: "300000" });
+
+const ROWS = [
   { key: "SIMPLE", label: "Simple" },
   { key: "MEDIUM", label: "Medium" },
   { key: "COMPLEX", label: "Complex" },
-];
+] as const;
 
-export function PricingForm({ initial }: { initial: PricingInput }) {
+export function PricingForm({ profiles }: { profiles: PricingProfileView[] }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
-  const [values, setValues] = useState({
-    SIMPLE: String(initial.SIMPLE),
-    MEDIUM: String(initial.MEDIUM),
-    COMPLEX: String(initial.COMPLEX),
-  });
+  const [draft, setDraft] = useState<Draft | null>(null);
 
-  const save = () =>
+  const run = (action: () => Promise<{ ok: boolean; error?: string }>, message: string, close = true) =>
     startTransition(async () => {
-      const result = await savePricing({
-        SIMPLE: Number(values.SIMPLE),
-        MEDIUM: Number(values.MEDIUM),
-        COMPLEX: Number(values.COMPLEX),
-      });
+      const result = await action();
       if (result.ok) {
-        toast.success("Harga disimpan sebagai versi baru");
+        toast.success(message);
+        if (close) setDraft(null);
         router.refresh();
       } else {
-        toast.error(result.error);
+        toast.error(result.error ?? "Gagal menyimpan");
       }
     });
 
+  const save = () => {
+    if (!draft) return;
+    run(
+      () =>
+        savePricing({
+          profileId: draft.profileId,
+          name: draft.name,
+          SIMPLE: Number(draft.SIMPLE),
+          MEDIUM: Number(draft.MEDIUM),
+          COMPLEX: Number(draft.COMPLEX),
+        }),
+      draft.profileId ? "Harga disimpan sebagai versi baru" : "Profil harga dibuat",
+    );
+  };
+
   return (
     <section className="bg-card space-y-4 rounded-[10px] border p-4 lg:p-5">
-      {ROWS.map(({ key, label }) => (
-        <div key={key} className="space-y-1.5">
-          <Label className="text-xs">{label} (Rp)</Label>
-          <Input
-            type="number"
-            min={1}
-            value={values[key]}
-            onChange={(e) => setValues({ ...values, [key]: e.target.value })}
-            className="h-10 text-[13px] lg:h-9"
-          />
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <h2 className="text-[15px] font-semibold">Profil harga</h2>
+          <p className="text-muted-foreground text-xs">
+            Tarif per tingkat kompleksitas. Boleh lebih dari satu — mis. tarif berbeda untuk tiap
+            jenis pekerjaan, atau untuk klien korporat.
+          </p>
         </div>
-      ))}
-      <p className="text-muted-foreground text-xs">
-        Very Complex tidak punya harga tetap — rentang diisi per tugas saat review.
-      </p>
-      <Button size="sm" className="max-lg:h-10 max-lg:w-full" disabled={pending} onClick={save}>
-        Simpan harga
-      </Button>
+        {!draft && (
+          <Button size="sm" className="max-lg:h-10" onClick={() => setDraft(emptyDraft())}>
+            <Plus className="size-4" />
+            Tambah profil harga
+          </Button>
+        )}
+      </div>
+
+      {!draft && (
+        <ul className="divide-y">
+          {profiles.length === 0 && (
+            <li className="text-muted-foreground py-4 text-[13px]">Belum ada profil harga.</li>
+          )}
+
+          {profiles.map((profile) => (
+            <li key={profile.id} className="flex flex-wrap items-center gap-2 py-3">
+              <div className="min-w-0 flex-1">
+                <p className="flex items-center gap-2 text-[13px] font-semibold">
+                  {profile.name}
+                  {profile.isDefault && (
+                    <span className="bg-primary-soft text-primary rounded-md px-1.5 py-0.5 text-[11px] font-medium">
+                      default
+                    </span>
+                  )}
+                </p>
+                <p className="text-muted-foreground text-xs tabular-nums">
+                  {formatIDR(profile.rules.SIMPLE ?? 0)} · {formatIDR(profile.rules.MEDIUM ?? 0)} ·{" "}
+                  {formatIDR(profile.rules.COMPLEX ?? 0)} · {profile.projectCount} project
+                </p>
+              </div>
+
+              <Button
+                variant="outline"
+                size="sm"
+                className="max-lg:h-10"
+                disabled={pending}
+                onClick={() => setDraft(toDraft(profile))}
+              >
+                Ubah
+              </Button>
+              {!profile.isDefault && (
+                <>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="max-lg:h-10"
+                    disabled={pending}
+                    onClick={() => run(() => setDefaultPricingProfile(profile.id), "Profil default diubah", false)}
+                  >
+                    <Check className="size-4" />
+                    Jadikan default
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-danger max-lg:h-10"
+                    disabled={pending}
+                    onClick={() => run(() => deletePricingProfile(profile.id), "Profil harga dihapus", false)}
+                  >
+                    <Trash2 className="size-4" />
+                  </Button>
+                </>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {draft && (
+        <div className="space-y-4">
+          <div className="space-y-1.5">
+            <Label className="text-xs">Nama profil harga</Label>
+            <Input
+              value={draft.name}
+              placeholder="Tarif Fotografi"
+              onChange={(e) => setDraft({ ...draft, name: e.target.value })}
+              className="h-10 text-[13px] lg:h-9"
+            />
+          </div>
+
+          {ROWS.map(({ key, label }) => (
+            <div key={key} className="space-y-1.5">
+              <Label className="text-xs">{label} (Rp)</Label>
+              <Input
+                type="number"
+                min={1}
+                value={draft[key]}
+                onChange={(e) => setDraft({ ...draft, [key]: e.target.value })}
+                className="h-10 text-[13px] lg:h-9"
+              />
+            </div>
+          ))}
+
+          <p className="text-muted-foreground text-xs">
+            Very Complex tidak punya harga tetap — rentang diisi per tugas saat review.
+            Menyimpan membuat versi baru; penawaran lama tetap memakai versi saat dibuat.
+          </p>
+
+          <div className="flex flex-wrap gap-2 [&>button]:max-lg:h-10 [&>button]:max-lg:flex-1">
+            <Button size="sm" disabled={pending} onClick={save}>
+              {pending ? "Menyimpan…" : draft.profileId ? "Simpan harga" : "Buat profil harga"}
+            </Button>
+            <Button variant="outline" size="sm" disabled={pending} onClick={() => setDraft(null)}>
+              Batal
+            </Button>
+          </div>
+        </div>
+      )}
     </section>
   );
 }

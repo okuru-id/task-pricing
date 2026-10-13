@@ -13,6 +13,8 @@ const draftSchema = z.object({
   requirement: z.string().max(100_000),
   /** Jenis pekerjaan yang menentukan kacamata analisis AI. Null = pakai profil default workspace. */
   jobProfileId: z.string().nullable().optional(),
+  /** Tarif yang dipakai estimasi ini. Null = tarif default workspace. */
+  pricingProfileId: z.string().nullable().optional(),
 });
 
 export type DraftInput = z.infer<typeof draftSchema>;
@@ -36,11 +38,26 @@ export async function saveDraft(input: DraftInput): Promise<{ projectId: string 
       )?.id ?? null
     : null;
 
+  // Sama seperti profil pekerjaan: tarif dari client diverifikasi miliknya workspace ini.
+  const pricingProfileId = data.pricingProfileId
+    ? (
+        await prisma.pricingProfile.findFirst({
+          where: { id: data.pricingProfileId, workspaceId },
+          select: { id: true },
+        })
+      )?.id ?? null
+    : null;
+
   if (data.projectId) {
     // updateMany + filter workspaceId: project tenant lain tidak akan tersentuh.
     const updated = await prisma.project.updateMany({
       where: { id: data.projectId, workspaceId, deletedAt: null },
-      data: { name, clientName: data.clientName || null, ...(jobProfileId ? { jobProfileId } : {}) },
+      data: {
+        name,
+        clientName: data.clientName || null,
+        ...(jobProfileId ? { jobProfileId } : {}),
+        ...(pricingProfileId ? { pricingProfileId } : {}),
+      },
     });
 
     if (updated.count > 0) {
@@ -62,6 +79,14 @@ export async function saveDraft(input: DraftInput): Promise<{ projectId: string 
         select: { id: true },
       });
 
+  const fallbackPricing = pricingProfileId
+    ? null
+    : await prisma.pricingProfile.findFirst({
+        where: { workspaceId },
+        orderBy: [{ isDefault: "desc" }, { createdAt: "asc" }],
+        select: { id: true },
+      });
+
   const project = await prisma.project.create({
     data: {
       workspaceId,
@@ -69,6 +94,7 @@ export async function saveDraft(input: DraftInput): Promise<{ projectId: string 
       clientName: data.clientName || null,
       status: "DRAFT",
       jobProfileId: jobProfileId ?? fallbackProfile?.id ?? null,
+      pricingProfileId: pricingProfileId ?? fallbackPricing?.id ?? null,
       estimations: { create: { requirement: data.requirement } },
     },
     select: { id: true },

@@ -162,10 +162,11 @@ model PricingProfile {
   isDefault   Boolean  @default(false)
   createdAt   DateTime @default(now())
 
-  workspace Workspace       @relation(fields: [workspaceId], references: [id])
-  rules     PricingRule[]
-  snapshots QuotationItem[]
+  workspace  Workspace       @relation(fields: [workspaceId], references: [id])
+  rules      PricingRule[]
+  snapshots  QuotationItem[]
   jobProfile JobProfile?
+  projects   Project[]
 
   @@map("pricing_profiles")
 }
@@ -260,8 +261,13 @@ model Project {
   /// default workspace bila kosong.
   jobProfileId String?
 
+  /// Tarif yang dipakai project ini. Biasanya ikut profil pekerjaan, tapi bisa ditimpa —
+  /// mis. klien korporat dengan tarif berbeda untuk jenis pekerjaan yang sama.
+  pricingProfileId String?
+
   workspace      Workspace       @relation(fields: [workspaceId], references: [id])
   jobProfile     JobProfile?     @relation(fields: [jobProfileId], references: [id])
+  pricingProfile PricingProfile? @relation(fields: [pricingProfileId], references: [id])
   estimations    Estimation[]
   changeRequests ChangeRequest[]
 

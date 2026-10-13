@@ -1,29 +1,76 @@
 import { prisma } from "@/lib/prisma";
 import { DEFAULT_RULES, type PriceRules } from "@/lib/pricing-engine";
 
+const rulesOf = (rows: { complexity: keyof PriceRules; price: number }[]): PriceRules => {
+  const rules: PriceRules = {};
+  for (const rule of rows) {
+    // rows sudah urut version desc — entri pertama per complexity adalah yang terbaru.
+    rules[rule.complexity] ??= rule.price;
+  }
+  return { ...DEFAULT_RULES, ...rules };
+};
+
+const ruleSelect = {
+  orderBy: { version: "desc" },
+  select: { complexity: true, price: true, version: true },
+} as const;
+
+/**
+ * Tarif satu profil harga tertentu, selalu diperiksa kepemilikannya terhadap workspace (§4).
+ * Profil yang bukan milik workspace, atau id kosong, jatuh ke profil default workspace —
+ * lebih baik memakai tarif yang sah daripada menolak menghitung harga.
+ */
+export async function getPriceRulesFor(
+  workspaceId: string,
+  pricingProfileId?: string | null,
+): Promise<PriceRules> {
+  if (pricingProfileId) {
+    const chosen = await prisma.pricingProfile.findFirst({
+      where: { id: pricingProfileId, workspaceId },
+      select: { rules: ruleSelect },
+    });
+    if (chosen) return rulesOf(chosen.rules);
+  }
+
+  return getPriceRules(workspaceId);
+}
+
 /** Ambil pricing rules versi terbaru dari profile default workspace (§2 Pricing Profiles). */
 export async function getPriceRules(workspaceId: string): Promise<PriceRules> {
   const profile = await prisma.pricingProfile.findFirst({
     where: { workspaceId },
     orderBy: [{ isDefault: "desc" }, { createdAt: "asc" }],
-    select: {
-      rules: {
-        orderBy: { version: "desc" },
-        select: { complexity: true, price: true, version: true },
-      },
-    },
+    select: { rules: ruleSelect },
   });
 
   if (!profile) return DEFAULT_RULES;
-
-  const rules: PriceRules = {};
-  for (const rule of profile.rules) {
-    // rules sudah urut version desc — entri pertama per complexity adalah yang terbaru.
-    rules[rule.complexity] ??= rule.price;
-  }
-
-  return { ...DEFAULT_RULES, ...rules };
+  return rulesOf(profile.rules);
 }
+
+/** Daftar profil harga untuk dikelola dan dipilih saat input estimasi. */
+export async function listPricingProfiles(workspaceId: string) {
+  const profiles = await prisma.pricingProfile.findMany({
+    where: { workspaceId },
+    orderBy: [{ isDefault: "desc" }, { createdAt: "asc" }],
+    select: {
+      id: true,
+      name: true,
+      isDefault: true,
+      rules: ruleSelect,
+      _count: { select: { projects: true } },
+    },
+  });
+
+  return profiles.map((profile) => ({
+    id: profile.id,
+    name: profile.name,
+    isDefault: profile.isDefault,
+    projectCount: profile._count.projects,
+    rules: rulesOf(profile.rules),
+  }));
+}
+
+export type PricingProfileView = Awaited<ReturnType<typeof listPricingProfiles>>[number];
 
 export interface PricingVersion {
   version: number;

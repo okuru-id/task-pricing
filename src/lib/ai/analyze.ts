@@ -2,7 +2,7 @@ import type { Complexity, Prisma, TaskFlag } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
 import { syncMilestonePrices } from "@/lib/data/milestones";
-import { getPriceRules } from "@/lib/data/pricing";
+import { getPriceRulesFor } from "@/lib/data/pricing";
 import { matchSuggestions } from "@/lib/milestones";
 import { priceTask, type PriceRules } from "@/lib/pricing-engine";
 
@@ -155,6 +155,7 @@ export async function persistAnalysis(
       // Kata kunci pemicu flag dan daftar tipe task mengikuti profil pekerjaan project.
       project: {
         select: {
+          pricingProfileId: true,
           jobProfile: {
             select: {
               thirdPartyHints: true,
@@ -168,7 +169,7 @@ export async function persistAnalysis(
   });
   if (!estimation) throw new AnalysisError("Estimation tidak ditemukan");
 
-  const rules = await getPriceRules(workspaceId);
+  const rules = await getPriceRulesFor(workspaceId, estimation.project.pricingProfileId);
 
   const profile = estimation.project.jobProfile;
   const availableTypes = taskTypesOf(profile);
