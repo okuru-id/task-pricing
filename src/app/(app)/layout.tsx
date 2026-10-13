@@ -1,6 +1,4 @@
-import { LogOut } from "lucide-react";
-
-import { auth, signOut } from "@/auth";
+import { auth } from "@/auth";
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { AppHeader } from "@/components/app-header";
@@ -23,33 +21,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const name = session?.user?.name ?? email.split("@")[0] ?? "Pengguna";
   const initials = initialsOf(name || email);
 
-  const signOutSlot = (
-    <form
-      action={async () => {
-        "use server";
-        await signOut({ redirectTo: "/login" });
-      }}
-    >
-      <button
-        type="submit"
-        title="Keluar"
-        className="text-muted-foreground hover:text-destructive flex w-full items-center gap-2 text-xs transition p-1"
-      >
-        <LogOut className="size-3.5" />
-        <span>Keluar</span>
-      </button>
-    </form>
-  );
-
   return (
     <SidebarProvider defaultOpen={true}>
-      {/* Sidebar Inset (New York v4 dashboard-01) */}
-      <AppSidebar
-        name={name}
-        email={email}
-        initials={initials}
-        signOutSlot={signOutSlot}
-      />
+      {/* Sidebar Inset (New York v4 dashboard-01). Tombol keluar ada di halaman Profil. */}
+      <AppSidebar name={name} email={email} initials={initials} />
 
       {/* Main Inset Panel dengan Header & Content Terpadu */}
       <SidebarInset>

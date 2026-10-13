@@ -21,7 +21,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { AI_PROVIDERS, OLLAMA_DEFAULT_BASE_URL, type AiProvider } from "@/lib/ai/providers";
 import type { AiConfigView } from "@/lib/ai/provider";
 
-import { listModels, saveAiSettings, saveBranding, testAiConnection, type ActionResult } from "./actions";
+import { listModels, saveAiSettings, testAiConnection, type ActionResult } from "./actions";
 
 function useSave() {
   const router = useRouter();
@@ -66,19 +66,11 @@ export function SettingsForms({
   ai,
   aiProblem,
   allowPrivate,
-  branding,
 }: {
   ai: AiConfigView | null;
   aiProblem: string | null;
   /** Server mengizinkan endpoint localhost/jaringan privat (self-host). */
   allowPrivate: boolean;
-  branding: {
-    companyName: string | null;
-    address: string | null;
-    contact: string | null;
-    bankInfo: string | null;
-    terms: string | null;
-  };
 }) {
   const { pending, run } = useSave();
 
@@ -125,14 +117,6 @@ export function SettingsForms({
     // Hanya saat mount: loadModels memakai nilai form awal.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  const [brand, setBrand] = useState({
-    companyName: branding.companyName ?? "",
-    address: branding.address ?? "",
-    contact: branding.contact ?? "",
-    bankInfo: branding.bankInfo ?? "",
-    terms: branding.terms ?? "",
-  });
 
   const test = async () => {
     const id = toast.loading("Menguji koneksi ke model…");
@@ -343,31 +327,6 @@ export function SettingsForms({
         </p>
       </Section>
 
-      <Section title="Identitas perusahaan" hint="Tampil di header, pembayaran, dan syarat pada PDF penawaran.">
-        <Field label="Nama perusahaan / freelancer">
-          <Input value={brand.companyName} onChange={(e) => setBrand({ ...brand, companyName: e.target.value })} className="h-10 text-[13px] lg:h-9" />
-        </Field>
-        <Field label="Alamat">
-          <Input value={brand.address} onChange={(e) => setBrand({ ...brand, address: e.target.value })} className="h-10 text-[13px] lg:h-9" />
-        </Field>
-        <Field label="Kontak">
-          <Input value={brand.contact} onChange={(e) => setBrand({ ...brand, contact: e.target.value })} className="h-10 text-[13px] lg:h-9" />
-        </Field>
-        <Field label="Info pembayaran (bank, no. rekening)">
-          <Textarea value={brand.bankInfo} onChange={(e) => setBrand({ ...brand, bankInfo: e.target.value })} className="min-h-16 text-[13px]" />
-        </Field>
-        <Field label="Syarat & ketentuan">
-          <Textarea value={brand.terms} onChange={(e) => setBrand({ ...brand, terms: e.target.value })} className="min-h-24 text-[13px]" />
-        </Field>
-        <Button
-          size="sm"
-          className="max-lg:h-10 max-lg:w-full"
-          disabled={pending}
-          onClick={() => run(() => saveBranding(brand), "Identitas disimpan")}
-        >
-          Simpan identitas
-        </Button>
-      </Section>
     </div>
   );
 }

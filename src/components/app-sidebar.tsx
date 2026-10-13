@@ -8,7 +8,7 @@ import {
   Plus,
   Settings,
   Tag,
-  ChevronsUpDown,
+  ChevronRight,
   X,
 } from "lucide-react";
 
@@ -25,14 +25,6 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { TaskPricerLogo } from "@/components/logo";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 
 const NAV_ITEMS = [
@@ -46,12 +38,10 @@ export function AppSidebar({
   name,
   email,
   initials,
-  signOutSlot,
 }: {
   name: string;
   email: string;
   initials: string;
-  signOutSlot: React.ReactNode;
 }) {
   const pathname = usePathname();
   const { state, isMobile, setOpenMobile } = useSidebar();
@@ -143,16 +133,21 @@ export function AppSidebar({
         </SidebarGroup>
       </SidebarContent>
 
-      {/* 3. Footer Sidebar: User Profile Dropdown ala shadcn dashboard-01 */}
+      {/*
+        3. Footer Sidebar: menuju halaman Profil. Dulu dropdown, tapi isinya hanya mengulang
+        nav utama (Dashboard / Profil Harga / Pengaturan AI) plus tombol keluar — keduanya
+        kini ada di halaman Profil, jadi satu klik langsung ke sana.
+      */}
       <SidebarFooter>
-        <DropdownMenu>
-          <DropdownMenuTrigger
-            className={cn(
-              "flex w-full items-center gap-2 rounded-lg p-1.5 text-left text-xs transition hover:bg-sidebar-accent outline-none",
-              isCollapsed && "justify-center p-1"
-            )}
-            aria-label="User Account Menu"
-          >
+        <Link
+          href="/profile"
+          aria-label="Profil dan identitas perusahaan"
+          className={cn(
+            "flex w-full items-center gap-2 rounded-lg p-1.5 text-left text-xs transition hover:bg-sidebar-accent outline-none",
+            pathname.startsWith("/profile") && "bg-sidebar-accent",
+            isCollapsed && "justify-center p-1"
+          )}
+        >
             <div className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary text-[11px] font-bold text-primary-foreground shadow-xs">
               {initials}
             </div>
@@ -162,46 +157,10 @@ export function AppSidebar({
                   <span className="truncate font-semibold text-sidebar-foreground">{name}</span>
                   <span className="truncate text-[10px] text-sidebar-foreground/60">{email}</span>
                 </div>
-                <ChevronsUpDown className="size-3.5 text-sidebar-foreground/50 shrink-0" />
+                <ChevronRight className="size-3.5 text-sidebar-foreground/50 shrink-0" />
               </>
             )}
-          </DropdownMenuTrigger>
-          <DropdownMenuContent
-            side={isMobile ? "top" : "right"}
-            align="end"
-            className="w-56"
-          >
-            <DropdownMenuLabel className="font-normal">
-              <div className="flex flex-col space-y-1">
-                <p className="text-xs font-semibold leading-none">{name}</p>
-                <p className="text-[11px] text-muted-foreground leading-none">{email}</p>
-              </div>
-            </DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem className="text-xs">
-              <Link href="/dashboard" className="flex w-full items-center gap-2">
-                <LayoutDashboard className="size-3.5" />
-                <span>Dashboard</span>
-              </Link>
-            </DropdownMenuItem>
-            <DropdownMenuItem className="text-xs">
-              <Link href="/pricing" className="flex w-full items-center gap-2">
-                <Tag className="size-3.5" />
-                <span>Profil Harga</span>
-              </Link>
-            </DropdownMenuItem>
-            <DropdownMenuItem className="text-xs">
-              <Link href="/settings" className="flex w-full items-center gap-2">
-                <Settings className="size-3.5" />
-                <span>Pengaturan AI</span>
-              </Link>
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <div className="p-1">
-              {signOutSlot}
-            </div>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        </Link>
       </SidebarFooter>
     </Sidebar>
   );

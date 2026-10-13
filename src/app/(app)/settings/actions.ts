@@ -171,24 +171,4 @@ export async function listModels(input: unknown): Promise<ListModelsResult> {
   }
 }
 
-const brandingSchema = z.object({
-  companyName: optional(200),
-  address: optional(500),
-  contact: optional(300),
-  bankInfo: optional(500),
-  terms: optional(3000),
-});
-
-export type BrandingInput = z.input<typeof brandingSchema>;
-
-export async function saveBranding(input: BrandingInput): Promise<ActionResult> {
-  const { workspaceId } = await requireScope();
-
-  const parsed = brandingSchema.safeParse(input);
-  if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message };
-
-  await prisma.workspace.update({ where: { id: workspaceId }, data: parsed.data });
-
-  revalidatePath("/settings");
-  return { ok: true };
-}
+// Identitas perusahaan pindah ke halaman Profil — lihat src/app/(app)/profile/actions.ts.
