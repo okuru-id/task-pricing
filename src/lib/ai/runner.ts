@@ -2,7 +2,7 @@ import { generateText, tool } from "ai";
 import type { z } from "zod";
 
 import { AnalysisError } from "./errors";
-import { buildStagePrompt, buildStageSystem, type AiStageKey } from "./prompt";
+import { buildStagePrompt, buildStageSystem, type AiStageKey, type JobPromptConfig } from "./prompt";
 import { resolveModel, type AiSettings } from "./provider";
 import { STAGES, STAGE_SCHEMAS, assembleAnalysis, taskLines, validateStageOutput, type StageData } from "./stages";
 import type { Analysis } from "./schema";
@@ -22,6 +22,7 @@ export async function runAiStage(
   requirement: string,
   data: StageData,
   settings: AiSettings,
+  job?: JobPromptConfig | null,
 ): Promise<unknown> {
   const model = resolveModel(settings);
   const toolName = `submit_${stage}`;
@@ -30,7 +31,7 @@ export async function runAiStage(
     const result = await generateText({
       model,
       temperature: settings.temperature,
-      system: buildStageSystem(stage, settings.systemPrompt),
+      system: buildStageSystem(stage, settings.systemPrompt, job),
       prompt: buildStagePrompt(stage, requirement, taskLines(data)),
       tools: {
         [toolName]: tool({
@@ -62,11 +63,18 @@ export async function runAiStage(
   }
 }
 
-/** Seluruh tahap AI berurutan dalam memori (tanpa DB) — dipakai script eval offline. */
-export async function generateAnalysisWith(requirement: string, settings: AiSettings): Promise<Analysis> {
+/**
+ * Seluruh tahap AI berurutan dalam memori (tanpa DB) — dipakai script eval offline.
+ * `job` membuat eval bisa menilai domain non-software dengan konteks profesinya sendiri.
+ */
+export async function generateAnalysisWith(
+  requirement: string,
+  settings: AiSettings,
+  job?: JobPromptConfig | null,
+): Promise<Analysis> {
   const data: StageData = {};
   for (const stage of AI_STAGES) {
-    (data as Record<string, unknown>)[stage] = await runAiStage(stage, requirement, data, settings);
+    (data as Record<string, unknown>)[stage] = await runAiStage(stage, requirement, data, settings, job);
   }
   return assembleAnalysis(data);
 }

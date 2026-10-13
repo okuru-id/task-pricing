@@ -39,6 +39,28 @@ const THIRD_PARTY_HINTS =
   /payment|pembayaran|midtrans|xendit|stripe|qris|gateway|whatsapp|\bapi\b|integrasi|integration|webhook|oauth|\bsso\b|google login/i;
 const MIGRATION_HINTS = /migrasi|migration|import data|pindah data/i;
 
+/**
+ * Kata kunci pemicu flag per profil pekerjaan. "webhook" tidak berarti apa pun bagi fotografer,
+ * sementara "sewa studio" atau "izin lokasi" justru ketergantungan pihak ketiga bagi mereka.
+ * Pola tak sah diabaikan (bukan melempar) supaya salah ketik di Pengaturan tidak menggagalkan
+ * analisis — perilakunya tinggal kembali ke default software.
+ */
+export interface GuardrailHints {
+  thirdPartyHints?: string | null;
+  migrationHints?: string | null;
+}
+
+function toRegex(pattern: string | null | undefined, fallback: RegExp): RegExp {
+  const source = pattern?.trim();
+  if (!source) return fallback;
+
+  try {
+    return new RegExp(source, "i");
+  } catch {
+    return fallback;
+  }
+}
+
 export { AnalysisError } from "./errors";
 export { generateAnalysisWith } from "./runner";
 
@@ -51,16 +73,19 @@ const VALID_FLAGS = new Set<string>(flagSchema.options);
 /** Task setelah guardrail: flag dijamin berupa enum yang sah. */
 export type NormalizedTask = Omit<AiTask, "flags"> & { flags: TaskFlag[] };
 
-export function applyGuardrails(task: AiTask): NormalizedTask {
+export function applyGuardrails(task: AiTask, hints?: GuardrailHints | null): NormalizedTask {
   // Flag bebas-teks dari model dibuang; hanya nilai enum yang dipertahankan.
   const flags = new Set<TaskFlag>(
     task.flags.filter((f): f is TaskFlag => VALID_FLAGS.has(f) && f !== "NO_FLAG"),
   );
   const haystack = `${task.name} ${task.reason} ${task.breakdown.join(" ")}`;
 
+  const thirdParty = toRegex(hints?.thirdPartyHints, THIRD_PARTY_HINTS);
+  const migration = toRegex(hints?.migrationHints, MIGRATION_HINTS);
+
   // §2 US4: task payment/integrasi/pihak ketiga wajib punya flag minimal ini.
-  if (THIRD_PARTY_HINTS.test(haystack)) flags.add("THIRD_PARTY_DEPENDENCY");
-  if (MIGRATION_HINTS.test(haystack)) flags.add("DATA_MIGRATION");
+  if (thirdParty.test(haystack)) flags.add("THIRD_PARTY_DEPENDENCY");
+  if (migration.test(haystack)) flags.add("DATA_MIGRATION");
   if (task.complexity === "very_complex") flags.add("COMPLEX_REVIEW");
   if (task.confidence === "low") flags.add("CLARIFICATION_REQUIRED");
 
@@ -113,13 +138,21 @@ export async function persistAnalysis(
 ) {
   const estimation = await prisma.estimation.findFirst({
     where: { id: estimationId, project: { workspaceId, deletedAt: null } },
-    select: { id: true, projectId: true },
+    select: {
+      id: true,
+      projectId: true,
+      // Kata kunci pemicu flag mengikuti profil pekerjaan project, bukan konstanta software.
+      project: {
+        select: { jobProfile: { select: { thirdPartyHints: true, migrationHints: true } } },
+      },
+    },
   });
   if (!estimation) throw new AnalysisError("Estimation tidak ditemukan");
 
   const rules = await getPriceRules(workspaceId);
 
-  const tasks = analysis.tasks.map(applyGuardrails);
+  const hints = estimation.project.jobProfile;
+  const tasks = analysis.tasks.map((task) => applyGuardrails(task, hints));
 
   await prisma.$transaction(async (tx) => {
     await beforeCommit?.(tx);

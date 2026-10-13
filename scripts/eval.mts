@@ -71,7 +71,9 @@ async function worker() {
 
     try {
       const analysis = await generateAnalysisWith(golden.requirement, settings);
-      const tasks = analysis.tasks.map(applyGuardrails).map((task) => ({
+      // Arrow function wajib: map() meneruskan index sebagai argumen kedua, dan argumen kedua
+      // applyGuardrails sekarang adalah kata kunci guardrail.
+      const tasks = analysis.tasks.map((task) => applyGuardrails(task)).map((task) => ({
         name: task.name,
         reason: task.reason,
         breakdown: task.breakdown,

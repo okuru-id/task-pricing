@@ -51,6 +51,25 @@ describe("applyGuardrails", () => {
     expect(result.flags).toContain("THIRD_PARTY_DEPENDENCY");
   });
 
+  it("memakai kata kunci profil pekerjaan, bukan kata kunci software", () => {
+    // Fotografer: "sewa studio" adalah ketergantungan pihak ketiga, "webhook" tidak relevan.
+    const hints = { thirdPartyHints: "sewa studio|izin lokasi|vendor cetak" };
+
+    const sewa = applyGuardrails(task({ name: "Sewa studio untuk sesi indoor" }), hints);
+    expect(sewa.flags).toContain("THIRD_PARTY_DEPENDENCY");
+
+    const webhook = applyGuardrails(task({ name: "Pasang webhook pembayaran" }), hints);
+    expect(webhook.flags).not.toContain("THIRD_PARTY_DEPENDENCY");
+  });
+
+  it("pola regex yang salah ketik tidak menggagalkan analisis — kembali ke default", () => {
+    const result = applyGuardrails(
+      task({ name: "Integrasi pembayaran QRIS" }),
+      { thirdPartyHints: "payment|(((" },
+    );
+    expect(result.flags).toContain("THIRD_PARTY_DEPENDENCY");
+  });
+
   it("memberi DATA_MIGRATION pada task migrasi data", () => {
     const result = applyGuardrails(task({ name: "Migrasi data produk lama" }));
     expect(result.flags).toContain("DATA_MIGRATION");

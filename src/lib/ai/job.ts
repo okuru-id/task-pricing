@@ -79,7 +79,28 @@ export async function advanceJob(jobId: string, workspaceId: string): Promise<Ad
       data: true,
       createdAt: true,
       estimationId: true,
-      estimation: { select: { requirement: true } },
+      estimation: {
+        select: {
+          requirement: true,
+          // Profil pekerjaan project menentukan istilah, definisi kompleksitas, dan kata kunci
+          // guardrail — tanpa ini AI menilai pekerjaan apa pun dengan kacamata software.
+          project: {
+            select: {
+              jobProfile: {
+                select: {
+                  aiInstruction: true,
+                  simpleGuide: true,
+                  mediumGuide: true,
+                  complexGuide: true,
+                  veryComplexGuide: true,
+                  thirdPartyHints: true,
+                  migrationHints: true,
+                },
+              },
+            },
+          },
+        },
+      },
     },
   });
   if (!job) return { state: "failed", stage: 0, error: "Analisis tidak ditemukan" };
@@ -133,7 +154,13 @@ export async function advanceJob(jobId: string, workspaceId: string): Promise<Ad
     }
 
     const settings = await requireAiSettings(workspaceId);
-    const output = await runAiStage(stage.key, job.estimation.requirement, data, settings);
+    const output = await runAiStage(
+      stage.key,
+      job.estimation.requirement,
+      data,
+      settings,
+      job.estimation.project.jobProfile,
+    );
 
     const saved = await prisma.analysisJob.updateMany({
       where: owned,
