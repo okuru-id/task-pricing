@@ -1,8 +1,13 @@
 import { Breadcrumb } from "@/components/breadcrumb";
+import { listJobProfileOptions } from "@/lib/data/job-profiles";
+import { requireScope } from "@/lib/workspace";
 
 import { EstimationForm } from "./estimation-form";
 
-export default function NewEstimationPage() {
+export default async function NewEstimationPage() {
+  const { workspaceId } = await requireScope();
+  const jobProfiles = await listJobProfileOptions(workspaceId);
+
   return (
     <div className="flex flex-col gap-5">
       <Breadcrumb items={[{ label: "Dashboard", href: "/dashboard" }, { label: "Estimasi Baru" }]} />
@@ -15,7 +20,7 @@ export default function NewEstimationPage() {
         </p>
       </header>
 
-      <EstimationForm />
+      <EstimationForm jobProfiles={jobProfiles} />
     </div>
   );
 }

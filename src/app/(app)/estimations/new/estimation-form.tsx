@@ -7,6 +7,13 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 
 import { analyze, saveDraft } from "./actions";
@@ -17,7 +24,13 @@ const PLACEHOLDER = `[09.14] Bu Ratna: Selamat pagi mas, saya mau bikin website 
 [09.16] Bu Ratna: Nanti admin bisa tambah/edit produk dan stok sendiri.
 [09.21] Bu Ratna: Terus tolong dihubungkan ke WhatsApp buat notifikasi pesanan.`;
 
-export function EstimationForm() {
+export interface JobProfileOption {
+  id: string;
+  name: string;
+  isDefault: boolean;
+}
+
+export function EstimationForm({ jobProfiles = [] }: { jobProfiles?: JobProfileOption[] }) {
   const [name, setName] = useState("");
   const [clientName, setClientName] = useState("");
   const [requirement, setRequirement] = useState("");
@@ -25,19 +38,24 @@ export function EstimationForm() {
   const [savedAt, setSavedAt] = useState<Date | null>(null);
   const [pending, startTransition] = useTransition();
 
+  // Jenis pekerjaan menentukan istilah dan ukuran kompleksitas yang dipakai AI.
+  const [jobProfileId, setJobProfileId] = useState<string | null>(
+    jobProfiles.find((profile) => profile.isDefault)?.id ?? jobProfiles[0]?.id ?? null,
+  );
+
   // Autosave hanya jalan kalau ada perubahan sejak simpan terakhir.
   const dirty = useRef(false);
-  const latest = useRef({ name, clientName, requirement, projectId });
+  const latest = useRef({ name, clientName, requirement, projectId, jobProfileId });
 
   useEffect(() => {
-    latest.current = { name, clientName, requirement, projectId };
-  }, [name, clientName, requirement, projectId]);
+    latest.current = { name, clientName, requirement, projectId, jobProfileId };
+  }, [name, clientName, requirement, projectId, jobProfileId]);
 
   // projectId sengaja tidak masuk deps: ia berubah tepat setelah simpan,
   // dan itu bukan perubahan isi yang perlu disimpan ulang.
   useEffect(() => {
     dirty.current = true;
-  }, [name, clientName, requirement]);
+  }, [name, clientName, requirement, jobProfileId]);
 
   useEffect(() => {
     const timer = setInterval(async () => {
@@ -103,6 +121,33 @@ export function EstimationForm() {
           />
         </div>
       </div>
+
+      {/* Satu pilihan ini menentukan istilah, ukuran kompleksitas, dan flag yang dipakai AI. */}
+      {jobProfiles.length > 0 && (
+        <div className="space-y-1.5">
+          <Label className="text-[13px]">Jenis pekerjaan</Label>
+          <Select
+            items={Object.fromEntries(jobProfiles.map((profile) => [profile.id, profile.name]))}
+            value={jobProfileId ?? ""}
+            onValueChange={(value) => setJobProfileId(value ?? null)}
+          >
+            <SelectTrigger className="bg-card w-full text-[13px] data-[size=default]:h-10">
+              <SelectValue placeholder="Pilih jenis pekerjaan" />
+            </SelectTrigger>
+            <SelectContent>
+              {jobProfiles.map((profile) => (
+                <SelectItem key={profile.id} value={profile.id}>
+                  {profile.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="text-muted-foreground text-[11px]">
+            Menentukan istilah dan ukuran kompleksitas yang dipakai AI. Kelola daftarnya di
+            Pengaturan AI.
+          </p>
+        </div>
+      )}
 
       <div className="space-y-1.5">
         <div className="flex items-center justify-between gap-2">
