@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { applyGuardrails } from "./analyze";
+import { applyGuardrails, normalizeTaskType } from "./analyze";
 import type { AiTask } from "./schema";
 
 const base: AiTask = {
@@ -115,5 +115,37 @@ describe("applyGuardrails", () => {
       task({ name: "Integrasi API ongkir", flags: ["NO_FLAG"] }),
     );
     expect(result.flags).not.toContain("NO_FLAG");
+  });
+});
+
+describe("normalizeTaskType", () => {
+  const fotografi = [
+    { code: "sesi_foto", label: "Sesi Foto" },
+    { code: "editing", label: "Editing & Retouch" },
+    { code: "cetak", label: "Cetak & Album" },
+  ];
+
+  it("menerima kode yang persis", () => {
+    expect(normalizeTaskType("editing", fotografi)).toBe("editing");
+  });
+
+  it("menerima label yang ditulis model, bukan kodenya", () => {
+    expect(normalizeTaskType("Sesi Foto", fotografi)).toBe("sesi_foto");
+    expect(normalizeTaskType("Cetak & Album", fotografi)).toBe("cetak");
+  });
+
+  it("memaafkan spasi dan huruf besar", () => {
+    expect(normalizeTaskType("  SESI FOTO ", fotografi)).toBe("sesi_foto");
+    expect(normalizeTaskType("sesi-foto", fotografi)).toBe("sesi_foto");
+  });
+
+  it("tipe asing jatuh ke tipe pertama, bukan menggagalkan analisis", () => {
+    // Model sesekali mengarang tipe; kehilangan satu analisis jauh lebih mahal
+    // daripada tipe yang tinggal diperbaiki user di Review Tugas.
+    expect(normalizeTaskType("new_feature", fotografi)).toBe("sesi_foto");
+  });
+
+  it("tanpa daftar tipe, nilai model dipertahankan apa adanya", () => {
+    expect(normalizeTaskType("NEW_FEATURE", [])).toBe("NEW_FEATURE");
   });
 });

@@ -2,16 +2,18 @@ import { z } from "zod";
 
 /** Kontrak output AI persis seperti §3 PRD. Divalidasi ketat — AI tidak boleh mengarang field. */
 
-export const taskTypeSchema = z.enum([
-  "bug",
-  "enhancement",
-  "new_feature",
-  "integration",
-  "infrastructure",
-  "investigation",
-  "maintenance",
-  "change_request",
-]);
+/**
+ * Tipe task tidak lagi enum tetap: daftarnya milik profil pekerjaan, dan model diberi
+ * daftar itu lewat prompt. Nilai di luar daftar dinormalisasi di guardrail, bukan ditolak —
+ * menggagalkan seluruh tahap hanya karena model menulis tipe yang tidak dikenal jauh lebih
+ * merugikan daripada memetakannya ke tipe terdekat.
+ */
+export const taskTypeSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(60)
+  .describe("Kode tipe task, persis salah satu dari daftar TIPE TASK yang diberikan");
 
 export const complexitySchema = z.enum(["simple", "medium", "complex", "very_complex"]);
 

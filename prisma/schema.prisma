@@ -7,16 +7,8 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum TaskType {
-  BUG
-  ENHANCEMENT
-  NEW_FEATURE
-  INTEGRATION
-  INFRASTRUCTURE
-  INVESTIGATION
-  MAINTENANCE
-  CHANGE_REQUEST
-}
+// enum TaskType dihapus: tipe task kini kode string milik JobTaskType per profil pekerjaan,
+// supaya fotografer memakai "sesi_foto" dan developer memakai "new_feature".
 
 enum Complexity {
   SIMPLE
@@ -300,7 +292,9 @@ model EstimationTask {
   estimationId      String
   name              String
   description       String?
-  type              TaskType
+  /// Kode tipe task dari JobTaskType profil pekerjaan project. Bukan enum lagi: tiap profesi
+  /// punya kategorinya sendiri, jadi "BUG"/"NEW_FEATURE" tidak berlaku universal.
+  type              String
   complexity        Complexity
   reason            String?
   confidence        Confidence @default(MEDIUM)
@@ -392,7 +386,8 @@ model QuotationItem {
   quotationId      String
   pricingProfileId String?
   name             String
-  type             TaskType?
+  /// Snapshot kode tipe task saat penawaran dibuat (lihat EstimationTask.type).
+  type             String?
   complexity       Complexity?
   breakdown        String[]
   price            Int

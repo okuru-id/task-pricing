@@ -3,7 +3,7 @@
 import { Fragment, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import type { Complexity, TaskFlag, TaskType } from "@prisma/client";
+import type { Complexity, TaskFlag } from "@prisma/client";
 import {
   DndContext,
   DragOverlay,
@@ -48,7 +48,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import type { EstimationTaskView } from "@/lib/data/estimations";
 import { formatIDR, formatRange } from "@/lib/format";
-import { COMPLEXITY_LABEL, COMPLEXITY_ORDER, FLAGS, FLAG_LABEL, TASK_TYPES, TASK_TYPE_LABEL } from "@/lib/labels";
+import { COMPLEXITY_LABEL, COMPLEXITY_ORDER, FLAGS, FLAG_LABEL, taskTypeLabel } from "@/lib/labels";
 import { priceTask, totalPrice, type PriceRules } from "@/lib/pricing-engine";
 import { cn } from "@/lib/utils";
 
@@ -58,7 +58,7 @@ const PRIORITY_LABEL: Record<number, string> = { 0: "Belum diatur", 1: "Tinggi",
 
 interface Draft {
   name: string;
-  type: TaskType;
+  type: string;
   complexity: Complexity;
   reason: string;
   description: string;
@@ -96,11 +96,16 @@ export function TaskReview({
   projectId,
   tasks,
   rules,
+  taskTypes = [],
 }: {
   projectId: string;
   tasks: EstimationTaskView[];
   rules: PriceRules;
+  /** Tipe task milik profil pekerjaan project; kosong = data lama tanpa profil. */
+  taskTypes?: { code: string; label: string }[];
 }) {
+  // Peta kode → label untuk kolom Tipe dan pemilih di editor.
+  const typeLabels = Object.fromEntries(taskTypes.map((type) => [type.code, type.label]));
   const router = useRouter();
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [draft, setDraft] = useState<Draft | null>(null);
@@ -280,7 +285,7 @@ export function TaskReview({
                       )}
                     </TableCell>
                     <TableCell className="text-muted-foreground text-xs leading-snug whitespace-normal">
-                      {TASK_TYPE_LABEL[task.type]}
+                      {taskTypeLabel(task.type, typeLabels)}
                     </TableCell>
                     <TableCell>
                       <ComplexityBadge value={task.complexity} />
@@ -389,19 +394,19 @@ export function TaskReview({
                     <div className="space-y-1.5">
                       <Label className="text-xs">Tipe</Label>
                       <Select
-                        items={TASK_TYPE_LABEL}
+                        items={typeLabels}
                         value={draft.type}
                         onValueChange={(value) =>
-                          setDraft({ ...draft, type: value as TaskType })
+                          value && setDraft({ ...draft, type: value })
                         }
                       >
                         <SelectTrigger className="bg-card h-9 w-full text-[13px]">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          {TASK_TYPES.map((type) => (
-                            <SelectItem key={type} value={type}>
-                              {TASK_TYPE_LABEL[type]}
+                          {taskTypes.map((type) => (
+                            <SelectItem key={type.code} value={type.code}>
+                              {type.label}
                             </SelectItem>
                           ))}
                         </SelectContent>

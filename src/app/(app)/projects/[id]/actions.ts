@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import type { Complexity, TaskFlag, TaskType } from "@prisma/client";
+import type { Complexity, TaskFlag } from "@prisma/client";
 import { z } from "zod";
 
 import { syncMilestonePrices } from "@/lib/data/milestones";
@@ -11,16 +11,6 @@ import { PricingError, priceTask } from "@/lib/pricing-engine";
 import { requireScope } from "@/lib/workspace";
 
 const COMPLEXITIES = ["SIMPLE", "MEDIUM", "COMPLEX", "VERY_COMPLEX"] as const;
-const TYPES = [
-  "BUG",
-  "ENHANCEMENT",
-  "NEW_FEATURE",
-  "INTEGRATION",
-  "INFRASTRUCTURE",
-  "INVESTIGATION",
-  "MAINTENANCE",
-  "CHANGE_REQUEST",
-] as const;
 const FLAGS = [
   "NO_FLAG",
   "CLARIFICATION_REQUIRED",
@@ -35,7 +25,8 @@ const FLAGS = [
 const updateSchema = z.object({
   taskId: z.string(),
   name: z.string().trim().min(1, "Nama tugas tidak boleh kosong").max(300),
-  type: z.enum(TYPES),
+  /** Kode tipe task dari profil pekerjaan project — bukan enum tetap lagi. */
+  type: z.string().trim().min(1, "Tipe task tidak boleh kosong").max(60),
   complexity: z.enum(COMPLEXITIES),
   reason: z.string().trim().max(2000).nullable(),
   description: z.string().trim().max(2000).nullable(),
@@ -96,7 +87,7 @@ export async function updateTask(input: UpdateTaskInput): Promise<ActionResult> 
       where: { id: data.taskId },
       data: {
         name: data.name,
-        type: data.type as TaskType,
+        type: data.type,
         complexity: data.complexity as Complexity,
         reason: data.reason,
         description: data.description,

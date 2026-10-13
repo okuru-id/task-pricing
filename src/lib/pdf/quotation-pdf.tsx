@@ -2,7 +2,7 @@ import { Document, Page, StyleSheet, Text, View } from "@react-pdf/renderer";
 import type { QuotationMode } from "@prisma/client";
 
 import { formatDate } from "@/lib/format";
-import { TASK_TYPE_LABEL, COMPLEXITY_LABEL } from "@/lib/labels";
+import { COMPLEXITY_LABEL, taskTypeLabel } from "@/lib/labels";
 import { formatItemPrice, formatTotal, groupByType } from "@/lib/quotation";
 
 export interface PdfQuotation {
@@ -113,7 +113,7 @@ export function QuotationPdf({
                   {!clientFriendly && (
                     <>
                       <Text style={styles.step}>
-                        {item.type ? TASK_TYPE_LABEL[item.type] : ""}
+                        {item.type ? taskTypeLabel(item.type) : ""}
                         {item.complexity ? ` · ${COMPLEXITY_LABEL[item.complexity]}` : ""}
                       </Text>
                       {item.breakdown.map((step, index) => (

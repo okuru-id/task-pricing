@@ -15,7 +15,31 @@ export interface JobPromptConfig {
   mediumGuide?: string | null;
   complexGuide?: string | null;
   veryComplexGuide?: string | null;
+  /** Tipe task yang boleh dipakai model. Kosong = pakai daftar bawaan software. */
+  taskTypes?: { code: string; label: string }[];
 }
+
+/** Dipakai bila profil belum menentukan tipe task sendiri. */
+export const DEFAULT_TASK_TYPES = [
+  { code: "bug", label: "Bug" },
+  { code: "enhancement", label: "Enhancement" },
+  { code: "new_feature", label: "New Feature" },
+  { code: "integration", label: "Integration" },
+  { code: "infrastructure", label: "Infrastructure" },
+  { code: "investigation", label: "Investigation" },
+  { code: "maintenance", label: "Maintenance" },
+  { code: "change_request", label: "Change Request" },
+] as const;
+
+export const taskTypesOf = (job?: JobPromptConfig | null) =>
+  job?.taskTypes?.length ? job.taskTypes : [...DEFAULT_TASK_TYPES];
+
+const taskTypeRules = (job?: JobPromptConfig | null) => {
+  const types = taskTypesOf(job);
+  return `TIPE TASK
+Isi field "type" dengan kode PERSIS dari daftar ini (jangan mengarang kode baru):
+${types.map((type) => `- ${type.code} = ${type.label}`).join("\n")}`;
+};
 
 const DEFAULT_TRADE = "software developer";
 
@@ -90,6 +114,7 @@ const stageSections = (stage: AiStageKey, job?: JobPromptConfig | null): string[
         preamble(job),
         "TAHAP: EKSTRAKSI. Ubah requirement mentah menjadi daftar task (nama + tipe) dan catat asumsi.",
         EXTRACTION_RULES,
+        taskTypeRules(job),
         `ASUMSI\nCatat asumsi yang Anda pakai (mis. "Sistem autentikasi existing sudah tersedia") agar tidak terjadi dispute scope.`,
         PROHIBITIONS,
       ];

@@ -1,4 +1,4 @@
-import type { Complexity, Prisma, TaskFlag, TaskType } from "@prisma/client";
+import type { Complexity, Prisma, TaskFlag } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
 import { syncMilestonePrices } from "@/lib/data/milestones";
@@ -7,18 +7,29 @@ import { matchSuggestions } from "@/lib/milestones";
 import { priceTask, type PriceRules } from "@/lib/pricing-engine";
 
 import { AnalysisError } from "./errors";
+import { taskTypesOf } from "./prompt";
 import { flagSchema, type AiTask, type Analysis } from "./schema";
 
-const TYPE_MAP: Record<AiTask["type"], TaskType> = {
-  bug: "BUG",
-  enhancement: "ENHANCEMENT",
-  new_feature: "NEW_FEATURE",
-  integration: "INTEGRATION",
-  infrastructure: "INFRASTRUCTURE",
-  investigation: "INVESTIGATION",
-  maintenance: "MAINTENANCE",
-  change_request: "CHANGE_REQUEST",
-};
+/**
+ * Samakan tipe dari model ke kode yang benar-benar ada di profil pekerjaan. Model kadang
+ * menulis label ("Sesi Foto") atau huruf besar, jadi pencocokan dibuat longgar. Tidak ada
+ * yang cocok → pakai tipe pertama profil, karena menggagalkan analisis hanya gara-gara
+ * satu field tipe jauh lebih merugikan daripada tipe yang perlu diperbaiki user.
+ */
+export function normalizeTaskType(raw: string, available: { code: string; label: string }[]): string {
+  const value = raw.trim();
+  if (available.length === 0) return value;
+
+  const key = value.toLowerCase().replace(/[\s-]+/g, "_");
+  const match = available.find(
+    (type) =>
+      type.code.toLowerCase() === key ||
+      type.label.toLowerCase() === value.toLowerCase() ||
+      type.label.toLowerCase().replace(/[\s-]+/g, "_") === key,
+  );
+
+  return match?.code ?? available[0].code;
+}
 
 const COMPLEXITY_MAP: Record<AiTask["complexity"], Complexity> = {
   simple: "SIMPLE",
@@ -141,9 +152,17 @@ export async function persistAnalysis(
     select: {
       id: true,
       projectId: true,
-      // Kata kunci pemicu flag mengikuti profil pekerjaan project, bukan konstanta software.
+      // Kata kunci pemicu flag dan daftar tipe task mengikuti profil pekerjaan project.
       project: {
-        select: { jobProfile: { select: { thirdPartyHints: true, migrationHints: true } } },
+        select: {
+          jobProfile: {
+            select: {
+              thirdPartyHints: true,
+              migrationHints: true,
+              taskTypes: { orderBy: { order: "asc" }, select: { code: true, label: true } },
+            },
+          },
+        },
       },
     },
   });
@@ -151,8 +170,9 @@ export async function persistAnalysis(
 
   const rules = await getPriceRules(workspaceId);
 
-  const hints = estimation.project.jobProfile;
-  const tasks = analysis.tasks.map((task) => applyGuardrails(task, hints));
+  const profile = estimation.project.jobProfile;
+  const availableTypes = taskTypesOf(profile);
+  const tasks = analysis.tasks.map((task) => applyGuardrails(task, profile));
 
   await prisma.$transaction(async (tx) => {
     await beforeCommit?.(tx);
@@ -186,7 +206,7 @@ export async function persistAnalysis(
         data: {
           estimationId,
           name: task.name,
-          type: TYPE_MAP[task.type],
+          type: normalizeTaskType(task.type, availableTypes),
           complexity: COMPLEXITY_MAP[task.complexity],
           reason: task.reason,
           confidence: CONFIDENCE_MAP[task.confidence],

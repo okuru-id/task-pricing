@@ -11,6 +11,14 @@ export async function getLatestEstimation(projectId: string, workspaceId: string
       name: true,
       clientName: true,
       status: true,
+      // Tipe task yang boleh dipakai project ini — milik profil pekerjaannya.
+      jobProfile: {
+        select: {
+          id: true,
+          name: true,
+          taskTypes: { orderBy: { order: "asc" }, select: { code: true, label: true } },
+        },
+      },
       estimations: {
         orderBy: { version: "desc" },
         take: 1,

@@ -60,7 +60,12 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
         </div>
       </header>
 
-      <TaskReview projectId={project.id} tasks={estimation.tasks} rules={rules} />
+      <TaskReview
+        projectId={project.id}
+        tasks={estimation.tasks}
+        rules={rules}
+        taskTypes={project.jobProfile?.taskTypes ?? []}
+      />
 
       <StepNav
         backHref={`/projects/${project.id}/requirement`}

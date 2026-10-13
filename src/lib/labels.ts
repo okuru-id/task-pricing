@@ -1,4 +1,4 @@
-import type { Complexity, ProjectStatus, TaskFlag, TaskType } from "@prisma/client";
+import type { Complexity, ProjectStatus, TaskFlag } from "@prisma/client";
 
 export const COMPLEXITY_LABEL: Record<Complexity, string> = {
   SIMPLE: "Simple",
@@ -7,7 +7,11 @@ export const COMPLEXITY_LABEL: Record<Complexity, string> = {
   VERY_COMPLEX: "Very Complex",
 };
 
-export const TASK_TYPE_LABEL: Record<TaskType, string> = {
+/**
+ * Label tipe task kini datang dari JobTaskType profil pekerjaan. Peta ini hanya cadangan
+ * untuk kode warisan enum lama agar project software yang sudah ada tetap terbaca rapi.
+ */
+const LEGACY_TASK_TYPE_LABEL: Record<string, string> = {
   BUG: "Bug",
   ENHANCEMENT: "Enhancement",
   NEW_FEATURE: "New Feature",
@@ -17,6 +21,22 @@ export const TASK_TYPE_LABEL: Record<TaskType, string> = {
   MAINTENANCE: "Maintenance",
   CHANGE_REQUEST: "Change Request",
 };
+
+/** Peta kode → label dari profil pekerjaan; dipakai halaman yang menampilkan tipe task. */
+export type TaskTypeLabels = Record<string, string>;
+
+/**
+ * Label yang dilihat user untuk satu kode tipe task. Urutan: label profil, lalu peta warisan,
+ * lalu kode itu sendiri dirapikan — supaya tipe yang baru dibuat user tidak pernah tampil kosong.
+ */
+export function taskTypeLabel(code: string | null | undefined, labels?: TaskTypeLabels): string {
+  if (!code) return "—";
+  return (
+    labels?.[code] ??
+    LEGACY_TASK_TYPE_LABEL[code] ??
+    code.replace(/[_-]+/g, " ").replace(/\b\w/g, (char) => char.toUpperCase())
+  );
+}
 
 export const STATUS_LABEL: Record<ProjectStatus, string> = {
   DRAFT: "Draft",
@@ -40,7 +60,5 @@ export const FLAG_LABEL: Record<TaskFlag, string> = {
 };
 
 export const COMPLEXITY_ORDER: Complexity[] = ["SIMPLE", "MEDIUM", "COMPLEX", "VERY_COMPLEX"];
-
-export const TASK_TYPES = Object.keys(TASK_TYPE_LABEL) as TaskType[];
 
 export const FLAGS = (Object.keys(FLAG_LABEL) as TaskFlag[]).filter((f) => f !== "NO_FLAG");

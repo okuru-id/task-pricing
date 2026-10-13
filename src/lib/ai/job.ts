@@ -95,6 +95,9 @@ export async function advanceJob(jobId: string, workspaceId: string): Promise<Ad
                   veryComplexGuide: true,
                   thirdPartyHints: true,
                   migrationHints: true,
+                  // Tanpa ini prompt memakai tipe task bawaan software, dan tipe profesi
+                  // tidak pernah sampai ke model.
+                  taskTypes: { orderBy: { order: "asc" }, select: { code: true, label: true } },
                 },
               },
             },

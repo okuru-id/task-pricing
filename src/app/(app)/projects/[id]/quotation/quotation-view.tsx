@@ -1,13 +1,13 @@
-import type { Complexity, QuotationMode, TaskType } from "@prisma/client";
+import type { Complexity, QuotationMode } from "@prisma/client";
 
 import { ComplexityBadge } from "@/components/task-badges";
-import { TASK_TYPE_LABEL } from "@/lib/labels";
+import { taskTypeLabel } from "@/lib/labels";
 import { formatItemPrice, formatTotal, groupByType } from "@/lib/quotation";
 
 interface Item {
   id: string;
   name: string;
-  type: TaskType | null;
+  type: string | null;
   complexity: Complexity | null;
   breakdown: string[];
   price: number;
@@ -58,7 +58,7 @@ export function QuotationView({ mode, quotation }: { mode: QuotationMode; quotat
           {quotation.items.map((item) => (
             <Row key={item.id} name={item.name} price={formatItemPrice(item)}>
               <div className="text-muted-foreground flex flex-wrap items-center gap-2 text-xs">
-                {item.type && <span>{TASK_TYPE_LABEL[item.type]}</span>}
+                {item.type && <span>{taskTypeLabel(item.type)}</span>}
                 {item.complexity && <ComplexityBadge value={item.complexity} />}
               </div>
               {item.breakdown.length > 0 && (

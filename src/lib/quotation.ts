@@ -1,12 +1,12 @@
-import type { Complexity, TaskFlag, TaskType } from "@prisma/client";
+import type { Complexity, TaskFlag } from "@prisma/client";
 
 import { formatIDR, formatRange } from "@/lib/format";
-import { TASK_TYPE_LABEL } from "@/lib/labels";
+import { taskTypeLabel, type TaskTypeLabels } from "@/lib/labels";
 import { PricingError, priceTask, type PriceRules } from "@/lib/pricing-engine";
 
 export interface QuotableTask {
   name: string;
-  type: TaskType;
+  type: string;
   complexity: Complexity;
   customEstimateMin: number | null;
   customEstimateMax: number | null;
@@ -16,7 +16,7 @@ export interface QuotableTask {
 
 export interface SnapshotItem {
   name: string;
-  type: TaskType;
+  type: string;
   complexity: Complexity;
   breakdown: string[];
   price: number;
@@ -97,7 +97,7 @@ export function formatTotal(quotation: { total: number; totalMax: number | null 
 }
 
 export interface TypeGroup<T> {
-  type: TaskType;
+  type: string;
   label: string;
   items: T[];
   subtotal: number;
@@ -105,16 +105,18 @@ export interface TypeGroup<T> {
 }
 
 /** Mode Summary: item dikelompokkan per tipe pekerjaan dengan subtotal. */
-export function groupByType<T extends { type: TaskType | null; price: number; priceMax: number | null }>(
+export function groupByType<T extends { type: string | null; price: number; priceMax: number | null }>(
   items: T[],
+  labels?: TaskTypeLabels,
 ): TypeGroup<T>[] {
-  const groups = new Map<TaskType, TypeGroup<T>>();
+  const groups = new Map<string, TypeGroup<T>>();
 
   for (const item of items) {
-    const type = item.type ?? "NEW_FEATURE";
+    // Item tanpa tipe (snapshot lama) dikelompokkan terpisah, bukan dipaksa jadi tipe software.
+    const type = item.type ?? "lainnya";
     const group = groups.get(type) ?? {
       type,
-      label: TASK_TYPE_LABEL[type],
+      label: taskTypeLabel(type, labels),
       items: [],
       subtotal: 0,
       subtotalMax: null,
