@@ -1,4 +1,4 @@
-import { Calculator, ReceiptText, Tag, Wallet } from "lucide-react";
+import { ReceiptText, Tag, Wallet } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 

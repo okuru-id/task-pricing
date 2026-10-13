@@ -30,7 +30,7 @@ import { cn } from "@/lib/utils";
 const NAV_ITEMS = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/history", label: "Riwayat", icon: History },
-  { href: "/pricing", label: "Profil Harga", icon: Tag },
+  { href: "/pricing", label: "Pekerjaan & Tarif", icon: Tag },
   { href: "/settings", label: "Pengaturan AI", icon: Settings },
 ];
 

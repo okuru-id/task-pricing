@@ -18,7 +18,7 @@ import {
 const ROUTE_LABELS: Record<string, string> = {
   dashboard: "Dashboard",
   history: "Riwayat",
-  pricing: "Profil Harga",
+  pricing: "Pekerjaan & Tarif",
   settings: "Pengaturan AI",
   estimations: "Estimasi",
   new: "Estimasi Baru",
