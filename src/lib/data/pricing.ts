@@ -56,7 +56,10 @@ export async function listPricingProfiles(workspaceId: string) {
       id: true,
       name: true,
       isDefault: true,
-      rules: ruleSelect,
+      rules: {
+        orderBy: { version: "desc" },
+        select: { complexity: true, price: true, version: true, createdAt: true },
+      },
       _count: { select: { projects: true } },
     },
   });
@@ -67,6 +70,9 @@ export async function listPricingProfiles(workspaceId: string) {
     isDefault: profile.isDefault,
     projectCount: profile._count.projects,
     rules: rulesOf(profile.rules),
+    // Riwayat ikut di sini supaya ditampilkan menempel pada profilnya, bukan sebagai
+    // daftar terpisah yang tidak jelas milik siapa.
+    history: toVersions(profile.rules),
   }));
 }
 
@@ -82,10 +88,16 @@ export interface PricingVersion {
  * Riwayat perubahan harga per versi. Penawaran lama memakai harga saat dibuat, jadi versi lama
  * tetap relevan untuk menjelaskan kenapa dua penawaran berbeda angkanya.
  */
-export async function getPricingHistory(workspaceId: string): Promise<PricingVersion[]> {
+/**
+ * Riwayat versi satu profil harga. Sejak profil boleh lebih dari satu, riwayat selalu
+ * ditampilkan menempel pada profilnya — riwayat tanpa konteks profil justru menyesatkan.
+ */
+export async function getPricingHistoryFor(
+  workspaceId: string,
+  pricingProfileId: string,
+): Promise<PricingVersion[]> {
   const profile = await prisma.pricingProfile.findFirst({
-    where: { workspaceId },
-    orderBy: [{ isDefault: "desc" }, { createdAt: "asc" }],
+    where: { id: pricingProfileId, workspaceId },
     select: {
       rules: {
         orderBy: { version: "desc" },
@@ -94,10 +106,15 @@ export async function getPricingHistory(workspaceId: string): Promise<PricingVer
     },
   });
 
-  if (!profile) return [];
+  return profile ? toVersions(profile.rules) : [];
+}
 
+function toVersions(
+  rows: { complexity: keyof PriceRules; price: number; version: number; createdAt: Date }[],
+): PricingVersion[] {
   const byVersion = new Map<number, PricingVersion>();
-  for (const rule of profile.rules) {
+
+  for (const rule of rows) {
     const entry = byVersion.get(rule.version) ?? {
       version: rule.version,
       changedAt: rule.createdAt,

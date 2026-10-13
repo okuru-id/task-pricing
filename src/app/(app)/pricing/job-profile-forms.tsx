@@ -8,10 +8,18 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import type { JobProfileView } from "@/lib/data/job-profiles";
 import { cn } from "@/lib/utils";
 
+import { linkJobToPricing } from "./actions";
 import { deleteJobProfile, saveJobProfile, setDefaultJobProfile } from "./job-profile-actions";
 
 interface Draft {
@@ -93,7 +101,16 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
   );
 }
 
-export function JobProfileForms({ profiles }: { profiles: JobProfileView[] }) {
+const NO_PRICING = "__default__";
+
+export function JobProfileForms({
+  profiles,
+  pricingProfiles = [],
+}: {
+  profiles: JobProfileView[];
+  /** Tarif yang bisa dipasang ke tiap jenis pekerjaan. */
+  pricingProfiles?: { id: string; name: string; isDefault: boolean }[];
+}) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [draft, setDraft] = useState<Draft | null>(null);
@@ -172,6 +189,44 @@ export function JobProfileForms({ profiles }: { profiles: JobProfileView[] }) {
                   {profile.taskTypes.length} tipe task · {profile._count.projects} project
                 </p>
               </div>
+
+              {/* Tarif dipilih langsung di baris ini: memisahkannya ke daftar lain membuat
+                  kaitan jenis pekerjaan ↔ harga tidak terlihat. */}
+              {pricingProfiles.length > 0 && (
+                <div className="flex items-center gap-2">
+                  <span className="text-muted-foreground text-xs">Tarif</span>
+                  <Select
+                    items={{
+                      [NO_PRICING]: "Default workspace",
+                      ...Object.fromEntries(pricingProfiles.map((p) => [p.id, p.name])),
+                    }}
+                    value={profile.pricingProfileId ?? NO_PRICING}
+                    onValueChange={(value) =>
+                      run(
+                        () =>
+                          linkJobToPricing(profile.id, !value || value === NO_PRICING ? null : value),
+                        "Tarif jenis pekerjaan diperbarui",
+                        false,
+                      )
+                    }
+                  >
+                    <SelectTrigger
+                      disabled={pending}
+                      className="bg-card w-44 text-[13px] data-[size=default]:h-10 lg:data-[size=default]:h-9"
+                    >
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={NO_PRICING}>Default workspace</SelectItem>
+                      {pricingProfiles.map((p) => (
+                        <SelectItem key={p.id} value={p.id}>
+                          {p.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
 
               <Button
                 variant="outline"

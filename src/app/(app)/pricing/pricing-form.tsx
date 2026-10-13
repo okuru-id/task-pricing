@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { PricingProfileView } from "@/lib/data/pricing";
-import { formatIDR } from "@/lib/format";
+import { formatDate, formatIDR } from "@/lib/format";
 
 import { deletePricingProfile, savePricing, setDefaultPricingProfile } from "./actions";
 
@@ -41,6 +41,9 @@ export function PricingForm({ profiles }: { profiles: PricingProfileView[] }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [draft, setDraft] = useState<Draft | null>(null);
+
+  // Profil yang sedang diubah — dipakai untuk menampilkan riwayat versinya.
+  const editing = draft?.profileId ? profiles.find((p) => p.id === draft.profileId) : undefined;
 
   const run = (action: () => Promise<{ ok: boolean; error?: string }>, message: string, close = true) =>
     startTransition(async () => {
@@ -176,6 +179,31 @@ export function PricingForm({ profiles }: { profiles: PricingProfileView[] }) {
             Very Complex tidak punya harga tetap — rentang diisi per tugas saat review.
             Menyimpan membuat versi baru; penawaran lama tetap memakai versi saat dibuat.
           </p>
+
+          {/* Riwayat ditampilkan di dalam editor profilnya, bukan sebagai daftar terpisah
+              yang tidak jelas milik profil mana. */}
+          {editing && editing.history.length > 0 && (
+            <details className="bg-muted/40 rounded-lg px-3 py-2">
+              <summary className="cursor-pointer text-xs font-medium">
+                Riwayat versi ({editing.history.length})
+              </summary>
+              <ul className="mt-2 space-y-1.5">
+                {editing.history.map(({ version, changedAt, rules }, index) => (
+                  <li key={version} className="flex flex-wrap items-baseline gap-x-2 text-xs">
+                    <span className="font-semibold">
+                      Versi {version}
+                      {index === 0 && <span className="text-primary ml-1">· aktif</span>}
+                    </span>
+                    <span className="text-muted-foreground">{formatDate(changedAt)}</span>
+                    <span className="text-muted-foreground w-full tabular-nums">
+                      {formatIDR(rules.SIMPLE ?? 0)} · {formatIDR(rules.MEDIUM ?? 0)} ·{" "}
+                      {formatIDR(rules.COMPLEX ?? 0)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )}
 
           <div className="flex flex-wrap gap-2 [&>button]:max-lg:h-10 [&>button]:max-lg:flex-1">
             <Button size="sm" disabled={pending} onClick={save}>
